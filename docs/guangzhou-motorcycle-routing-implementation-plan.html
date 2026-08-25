@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>广州摩托车摄像头避让导航 Web/PWA 实施方案</title>
+  <style>
+    :root { color-scheme: light; --ink: #172033; --muted: #5e6b82; --line: #d9e1ee; --brand: #1769aa; --soft: #eef6ff; --warn: #fff7df; --green: #e9f8ef; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f7fb; color: var(--ink); font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    main { max-width: 1120px; margin: 0 auto; padding: 36px 24px 80px; }
+    header { background: linear-gradient(135deg, #0d4777, #2182bf); color: #fff; border-radius: 18px; padding: 34px 38px; box-shadow: 0 10px 30px #174a7333; }
+    h1 { margin: 0 0 8px; font-size: clamp(28px, 4vw, 42px); line-height: 1.2; }
+    h2 { margin: 42px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--line); font-size: 27px; }
+    h3 { margin: 26px 0 8px; font-size: 20px; }
+    p { margin: 10px 0; }
+    a { color: var(--brand); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { background: #edf1f7; border-radius: 4px; padding: 2px 5px; }
+    pre { overflow-x: auto; background: #101827; color: #e7eef8; border-radius: 10px; padding: 18px; }
+    table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; background: #fff; }
+    th, td { text-align: left; vertical-align: top; border: 1px solid var(--line); padding: 10px 12px; }
+    th { background: var(--soft); }
+    .callout { border-left: 5px solid var(--brand); background: var(--soft); padding: 14px 18px; margin: 18px 0; }
+    .warning { border-left-color: #d28b00; background: var(--warn); }
+    .good { border-left-color: #209653; background: var(--green); }
+    .diagram { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px; overflow-x: auto; margin: 18px 0; }
+    svg { display: block; min-width: 760px; width: 100%; height: auto; }
+    .box { fill: #f8fbff; stroke: #1769aa; stroke-width: 2; rx: 10; }
+    .box2 { fill: #eef8f1; stroke: #209653; stroke-width: 2; rx: 10; }
+    .box3 { fill: #fff7df; stroke: #c48700; stroke-width: 2; rx: 10; }
+    .arrow { stroke: #65748b; stroke-width: 2; marker-end: url(#arrow); fill: none; }
+    .label { font-size: 16px; fill: #172033; text-anchor: middle; dominant-baseline: middle; }
+    .small { color: var(--muted); font-size: 14px; }
+    ul, ol { padding-left: 26px; }
+    .phase { border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 14px 18px; margin: 12px 0; }
+    .phase strong { color: var(--brand); }
+    footer { margin-top: 50px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; font-size: 14px; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>广州摩托车摄像头避让导航 Web/PWA 实施方案</h1>
+    <div>v1.0 · 2026-08-25 · 免费、广州范围、浏览器本地路线计算、按已知摄像头点位做简单避让</div>
+  </header>
+
+  <div class="callout good">
+    <strong>执行结论：</strong>先做 Valhalla WASM Spike，再做广州图数据和摄像头点位避让。Valhalla 是首选；如果无法稳定支持浏览器图块按需加载，则评估 omt-router，并明确只能使用 car 近似摩托车。
+  </div>
+
+  <h2>1. 目标与边界</h2>
+  <h3>目标</h3>
+  <p>构建一个纯静态 Web/PWA：用户打开页面后获取当前位置，点击地图选择目的地，浏览器在 Web Worker 中完成本地路线计算，并在候选路线附近发现已知摄像头点位后重新规划一条避让路线。</p>
+  <ul>
+    <li>不调用远程 <code>/route</code> 或其他 Routing API。</li>
+    <li>路线计算在浏览器本地完成。</li>
+    <li>广州作为唯一支持区域。</li>
+    <li>首选 Valhalla WASM，必须实际验证 <code>motorcycle</code>。</li>
+    <li>摄像头点位只作为风险点，不建模完整交通法规。</li>
+    <li>软件、地图数据和部署优先采用免费方案。</li>
+  </ul>
+  <h3>V1 不做</h3>
+  <ul>
+    <li>全国、省级或跨城市路由。</li>
+    <li>地址/POI 搜索、账号、收藏、社区和后台管理。</li>
+    <li>实时交通、实时摄像头同步和在线导航播报。</li>
+    <li>完整禁摩法规引擎、车籍判断、时段判断和例外规则。</li>
+  </ul>
+  <div class="callout warning">产品提示：路线仅供辅助参考。摄像头点位可能存在延迟、遗漏或变更，请以实际道路标志和交通法规为准。</div>
+
+  <h2>2. 技术路线决策</h2>
+  <table>
+    <thead><tr><th>方案</th><th>决策</th><th>原因</th></tr></thead>
+    <tbody>
+      <tr><td>Valhalla WASM</td><td>首选</td><td>支持 motorcycle 和 exclude_locations，但浏览器图块读取和异步加载风险最高。</td></tr>
+      <tr><td>omt-router</td><td>备用</td><td>原生浏览器 Worker、图块缓存、无后端；目前只有 car/bicycle/pedestrian，使用 AGPL-3.0。</td></tr>
+      <tr><td>MPEE</td><td>暂不选</td><td>MIT/WASM，但公开 profile 主要为 car、bicycle、foot，偏单区域整体缓存。</td></tr>
+      <tr><td>OSRM/GraphHopper 服务</td><td>不选</td><td>通常需要路由服务端，不满足浏览器本地计算约束。</td></tr>
+    </tbody>
+  </table>
+  <p>参考：<a href="https://valhalla.github.io/valhalla/api/route/api-reference/">Valhalla Route API</a>、<a href="https://github.com/AbelVM/omt-router">omt-router</a>。</p>
+
+  <h2>3. 总体架构</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1000 420" role="img" aria-label="总体技术架构图">
+      <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#65748b"/></marker></defs>
+      <rect class="box" x="35" y="45" width="245" height="285"/><text class="label" x="157" y="72">用户浏览器</text>
+      <rect class="box2" x="62" y="105" width="190" height="45"/><text class="label" x="157" y="128">MapLibre + Web UI</text>
+      <rect class="box2" x="62" y="170" width="190" height="45"/><text class="label" x="157" y="193">GPS / 摄像头图层</text>
+      <rect class="box2" x="62" y="235" width="190" height="55"/><text class="label" x="157" y="262">Web Worker</text>
+      <rect class="box3" x="360" y="105" width="225" height="55"/><text class="label" x="472" y="132">Valhalla WASM Adapter</text>
+      <rect class="box3" x="360" y="205" width="225" height="55"/><text class="label" x="472" y="232">Tile Provider + Cache</text>
+      <rect class="box" x="690" y="60" width="240" height="75"/><text class="label" x="810" y="88">Cloudflare Pages</text><text class="label small" x="810" y="112">App Shell / WASM / manifest</text>
+      <rect class="box" x="690" y="205" width="240" height="75"/><text class="label" x="810" y="233">Cloudflare R2</text><text class="label small" x="810" y="257">广州 .gph graph tiles</text>
+      <rect class="box" x="690" y="330" width="240" height="55"/><text class="label" x="810" y="357">IndexedDB</text>
+      <path class="arrow" d="M280 262 L360 232"/><path class="arrow" d="M280 262 L360 132"/><path class="arrow" d="M585 132 L690 98"/><path class="arrow" d="M585 232 L690 242"/><path class="arrow" d="M585 232 L690 357"/>
+    </svg>
+  </div>
+  <p>业务层只依赖统一的 <code>RoutingEngine</code>，不直接依赖 Valhalla JSON、Emscripten FS 或具体 npm wrapper。</p>
+
+  <h2>4. 核心流程</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1000 390" role="img" aria-label="核心业务流程图">
+      <defs><marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#65748b"/></marker></defs>
+      <rect class="box" x="30" y="55" width="135" height="48"/><text class="label" x="97" y="79">打开页面</text>
+      <rect class="box" x="205" y="55" width="150" height="48"/><text class="label" x="280" y="79">加载地图/数据</text>
+      <rect class="box" x="395" y="55" width="150" height="48"/><text class="label" x="470" y="79">获取 GPS 或选起点</text>
+      <rect class="box" x="585" y="55" width="150" height="48"/><text class="label" x="660" y="79">点击目的地</text>
+      <rect class="box3" x="775" y="55" width="170" height="48"/><text class="label" x="860" y="79">第一次 route</text>
+      <rect class="box2" x="775" y="190" width="170" height="48"/><text class="label" x="860" y="214">筛选附近摄像头</text>
+      <rect class="box3" x="585" y="190" width="150" height="48"/><text class="label" x="660" y="214">第二次 route</text>
+      <rect class="box2" x="395" y="190" width="150" height="48"/><text class="label" x="470" y="214">显示最终路线</text>
+      <rect class="box" x="205" y="190" width="150" height="48"/><text class="label" x="280" y="214">显示距离/时间</text>
+      <path class="arrow" marker-end="url(#arrow2)" d="M165 79 L205 79"/><path class="arrow" marker-end="url(#arrow2)" d="M355 79 L395 79"/><path class="arrow" marker-end="url(#arrow2)" d="M545 79 L585 79"/><path class="arrow" marker-end="url(#arrow2)" d="M735 79 L775 79"/><path class="arrow" marker-end="url(#arrow2)" d="M860 103 L860 190"/><path class="arrow" marker-end="url(#arrow2)" d="M775 214 L735 214"/><path class="arrow" marker-end="url(#arrow2)" d="M585 214 L545 214"/><path class="arrow" marker-end="url(#arrow2)" d="M395 214 L355 214"/>
+    </svg>
+  </div>
+
+  <h2>5. 业务接口</h2>
+  <pre><code>export type Coordinate = { lat: number; lon: number }
+
+export type RouteInput = {
+  start: Coordinate
+  end: Coordinate
+  costing: "motorcycle"
+  excludeLocations?: Coordinate[]
+}
+
+export type RouteResult = {
+  distanceMeters: number
+  durationSeconds: number
+  geometry: GeoJSON.LineString
+  avoidedCameraCount: number
+}
+
+export type RoutingEngine = {
+  init(): Promise&lt;void&gt;
+  route(input: RouteInput): Promise&lt;RouteResult&gt;
+  clearCache(): Promise&lt;void&gt;
+}</code></pre>
+
+  <h2>6. 摄像头点位算法</h2>
+  <p>V1 只使用静态 JSON 点位。第一次路线完成后，计算摄像头点到路线的距离，筛选 200 米内的点，再把这些点传给第二次路线请求。</p>
+  <div class="diagram">
+    <svg viewBox="0 0 1000 210" role="img" aria-label="摄像头点位避让流程图">
+      <defs><marker id="arrow3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#65748b"/></marker></defs>
+      <rect class="box" x="30" y="70" width="170" height="55"/><text class="label" x="115" y="97">第一次路线</text>
+      <rect class="box" x="280" y="70" width="170" height="55"/><text class="label" x="365" y="97">点到线距离筛选</text>
+      <rect class="box3" x="530" y="70" width="170" height="55"/><text class="label" x="615" y="97">附近摄像头坐标</text>
+      <rect class="box2" x="780" y="70" width="170" height="55"/><text class="label" x="865" y="97">第二次 route</text>
+      <path class="arrow" marker-end="url(#arrow3)" d="M200 97 L280 97"/><path class="arrow" marker-end="url(#arrow3)" d="M450 97 L530 97"/><path class="arrow" marker-end="url(#arrow3)" d="M700 97 L780 97"/>
+    </svg>
+  </div>
+  <p><code>avoidedCameraCount</code> 表示参与二次规划的摄像头数量，不表示法规上绝对安全。</p>
+
+  <h2>7. 图数据、缓存和部署</h2>
+  <h3>图数据目录</h3>
+  <pre><code>routing/
+  guangzhou/
+    graph-2026-08-25-001/
+      manifest.json
+      0/xxx/xxx.gph
+      1/xxx/xxx.gph
+      2/xxx/xxx.gph</code></pre>
+  <h3>缓存顺序</h3>
+  <pre><code>Memory Cache
+  ↓ miss
+IndexedDB(graphVersion + tileId)
+  ↓ miss
+HTTP GET R2 .gph
+  ↓
+写入 IndexedDB 和 Memory Cache</code></pre>
+  <p>不要把整个广州 graph 做成浏览器首次下载的大文件。使用 graphVersion 隔离新旧数据。Service Worker 第一版只缓存 App Shell、JS/CSS、WASM 和 manifest；graph tile 由专门的 Tile Provider 管理。</p>
+
+  <h2>8. 实施阶段</h2>
+  <div class="phase"><strong>Phase 0：项目骨架。</strong> Vite + TypeScript、RoutingEngine 接口、/spike 页面、调试输出。</div>
+  <div class="phase"><strong>Phase 1：Valhalla WASM Spike。</strong> 只验证浏览器启动、小规模 graph、geometry/distance/duration 和无远程 route API。</div>
+  <div class="phase"><strong>Phase 2：motorcycle 与摄像头避让。</strong> 固定起点、终点和测试摄像头点，确认第二次路线实际变化并绕开点附近道路。</div>
+  <div class="phase"><strong>Phase 3：广州 graph 和按需加载。</strong> 构建 OSM graph、上传 R2、实现缺 tile 获取和 manifest。</div>
+  <div class="phase"><strong>Phase 4：IndexedDB 缓存。</strong> 版本隔离、统计、清除缓存、失败重试。</div>
+  <div class="phase"><strong>Phase 5：MapLibre 最小 UI。</strong> 地图、定位、目的地、摄像头 GeoJSON、路线和结果面板。</div>
+  <div class="phase"><strong>Phase 6：GPS 与错误处理。</strong> 覆盖拒绝定位、超时、引擎失败、tile 失败、数据失败和无路线。</div>
+  <div class="phase"><strong>Phase 7：PWA 与免费部署。</strong> manifest、Service Worker、Pages、R2、CORS 和缓存头。</div>
+
+  <h2>9. 技术路线选择流程</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 1000 430" role="img" aria-label="技术路线选择流程图">
+      <defs><marker id="arrow4" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#65748b"/></marker></defs>
+      <rect class="box" x="365" y="20" width="270" height="50"/><text class="label" x="500" y="45">开始 Valhalla WASM Spike</text>
+      <rect class="box3" x="365" y="105" width="270" height="50"/><text class="label" x="500" y="130">验证启动 / motorcycle / tile / exclude</text>
+      <rect class="box2" x="365" y="190" width="270" height="50"/><text class="label" x="500" y="215">通过：采用 ValhallaAdapter</text>
+      <rect class="box" x="50" y="285" width="270" height="50"/><text class="label" x="185" y="310">失败：评估 omt-router</text>
+      <rect class="box3" x="365" y="285" width="270" height="50"/><text class="label" x="500" y="310">接受 car 近似摩托车？</text>
+      <rect class="box2" x="680" y="285" width="270" height="50"/><text class="label" x="815" y="310">是：采用 OmtRouterAdapter</text>
+      <rect class="box3" x="365" y="370" width="270" height="50"/><text class="label" x="500" y="395">否：暂停 UI，重新评估引擎</text>
+      <path class="arrow" marker-end="url(#arrow4)" d="M500 70 L500 105"/><path class="arrow" marker-end="url(#arrow4)" d="M500 155 L500 190"/><path class="arrow" marker-end="url(#arrow4)" d="M365 130 L185 285"/><path class="arrow" marker-end="url(#arrow4)" d="M185 335 L365 310"/><path class="arrow" marker-end="url(#arrow4)" d="M635 310 L680 310"/><path class="arrow" marker-end="url(#arrow4)" d="M500 335 L500 370"/>
+    </svg>
+  </div>
+
+  <h2>10. 测试与性能记录</h2>
+  <ul>
+    <li>单元测试：坐标校验、摄像头解析、点到线筛选、请求生成、响应解析、缓存版本隔离。</li>
+    <li>集成测试：固定 OSM PBF checksum、Valhalla commit、graphVersion、起点、终点和测试摄像头。</li>
+    <li>浏览器测试：Desktop Chrome、Android Chrome、iPhone Safari。</li>
+    <li>性能指标：WASM 大小、初始化耗时、首次路线耗时、tile 数量/体积、缓存后二次路线耗时。</li>
+  </ul>
+  <p>测试关注道路和点位关系，不要求每次 graph 更新后 geometry 的每个小数位完全一致。</p>
+
+  <h2>11. 免费部署方案</h2>
+  <table>
+    <thead><tr><th>部分</th><th>方案</th></tr></thead>
+    <tbody>
+      <tr><td>代码</td><td>GitHub 或其他免费 Git 仓库</td></tr>
+      <tr><td>前端</td><td>Cloudflare Pages</td></tr>
+      <tr><td>graph tile</td><td>Cloudflare R2 Standard</td></tr>
+      <tr><td>地图</td><td>OpenFreeMap 公共实例或自托管 OpenMapTiles</td></tr>
+      <tr><td>数据</td><td>OpenStreetMap + 自维护摄像头 JSON</td></tr>
+      <tr><td>计算</td><td>浏览器 WASM / JavaScript Worker</td></tr>
+    </tbody>
+  </table>
+  <p>R2 当前 Standard 存储每月包含 10 GB、100 万次 Class A、1000 万次 Class B，出网流量免费；小规模 MVP 可以按零成本设计，但不能承诺无限流量永久免费。参考：<a href="https://developers.cloudflare.com/r2/pricing/">R2 Pricing</a>、<a href="https://developers.cloudflare.com/pages/platform/limits/">Pages Limits</a>。</p>
+
+  <h2>12. MVP 验收标准</h2>
+  <ul>
+    <li>页面显示广州地图。</li>
+    <li>可点击地图设置目的地；GPS 失败时可手动选择起点。</li>
+    <li>浏览器本地启动路由引擎，没有远程 route API。</li>
+    <li>首选引擎使用 motorcycle，可以加载真实广州 graph tile。</li>
+    <li>graph tile 按需下载并有本地缓存。</li>
+    <li>可以加载和显示广州摄像头 JSON。</li>
+    <li>第二次摄像头避让路线实际生效。</li>
+    <li>显示最终路线、距离、预计时间和已避开摄像头数量。</li>
+    <li>支持 PWA 安装并部署到 Cloudflare Pages + R2。</li>
+    <li>小规模使用不依赖付费 Routing API。</li>
+  </ul>
+
+  <h2>13. 执行原则</h2>
+  <ol>
+    <li>先做 Spike，后做 UI。</li>
+    <li>先验证能力，不根据 wrapper 类型或 README 猜测。</li>
+    <li>业务层只依赖 <code>RoutingEngine</code>。</li>
+    <li>Valhalla 失败时切换 adapter，不重写整个应用。</li>
+    <li>摄像头避让只描述为“避开已知点位”。</li>
+    <li>所有 graph、OSM 和摄像头数据都带版本。</li>
+    <li>不引入付费地图、搜索或路线 API。</li>
+  </ol>
+
+  <footer>文档对应 Markdown 版本：docs/guangzhou-motorcycle-routing-implementation-plan.md</footer>
+</main>
+</body>
+</html>
