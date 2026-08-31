@@ -22,4 +22,5 @@ export type CameraAvoidanceStatus = "not-needed" | "applied" | "unavailable" | "
 export type CameraAwareRouteResult = RouteResult & {
   cameraAvoidanceStatus: CameraAvoidanceStatus;
   cameraAvoidanceMessage?: string;
+  primaryRoute?: RouteResult;
 };
