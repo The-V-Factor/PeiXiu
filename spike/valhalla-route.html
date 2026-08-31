@@ -91,6 +91,10 @@
           status.textContent = data.message;
         }
       });
+      worker.addEventListener("error", ({ message }) => {
+        status.textContent = "Worker 启动或执行失败。";
+        result.textContent = message || "无法加载本地路线 Worker。";
+      });
     </script>
   </body>
 </html>

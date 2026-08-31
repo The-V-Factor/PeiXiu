@@ -1,8 +1,9 @@
 /// <reference lib="webworker" />
 
-import { createBufferTileSource, createMotorcycleRoutingEngine } from "./engine.js";
+import { createMotorcycleRoutingEngine } from "./engine.js";
 import { loadCameraDataset } from "../../restrictions/cameras.js";
 import { routeWithCameraAvoidance } from "../../restrictions/avoidance.js";
+import { createManifestTileSourceFactory } from "../tiles/provider.js";
 import type { RouteInput } from "../types.js";
 
 type WorkerRequest = {
@@ -12,7 +13,9 @@ type WorkerRequest = {
   avoidCameras?: boolean;
 };
 
-const tileBuffers = new Map<string, ArrayBuffer>();
+const tileSourceFactory = createManifestTileSourceFactory({
+  onProgress: (message) => self.postMessage({ type: "progress", message }),
+});
 const engine = createMotorcycleRoutingEngine({
   initModule: () =>
     ValhallaModule({
@@ -20,16 +23,7 @@ const engine = createMotorcycleRoutingEngine({
       print: (message: string) => self.postMessage({ type: "debug", message: `[Valhalla WASM] ${message}` }),
       printErr: (message: string) => self.postMessage({ type: "debug", message: `[Valhalla WASM] ${message}` }),
     }),
-  tileSourceFactory: async (region) => {
-    let buffer = tileBuffers.get(region);
-    if (!buffer) {
-      const response = await fetch(`/tiles/${region}-routing.tar`);
-      if (!response.ok) return null;
-      buffer = await response.arrayBuffer();
-      tileBuffers.set(region, buffer);
-    }
-    return createBufferTileSource(buffer);
-  },
+  tileSourceFactory,
   onProgress: (message) => self.postMessage({ type: "progress", message }),
 });
 
@@ -40,6 +34,7 @@ declare const ValhallaModule: (options?: Record<string, unknown>) => Promise<any
 
 self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   if (event.data.type !== "route") return;
+  self.postMessage({ type: "progress", message: "已收到路线请求。" });
   try {
     const result = event.data.avoidCameras
       ? await routeWithCameraAvoidance(event.data.input, {
