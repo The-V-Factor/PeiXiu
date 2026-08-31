@@ -10,5 +10,8 @@
   "devDependencies": {
     "typescript": "^5.0.0",
     "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "valhalla-wasm": "0.1.0"
   }
 }

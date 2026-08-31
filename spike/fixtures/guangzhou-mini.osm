@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="PeiXiu">
+  <node id="1" lat="23.120000" lon="113.260000" version="1" visible="true" />
+  <node id="2" lat="23.120000" lon="113.270000" version="1" visible="true" />
+  <node id="3" lat="23.120000" lon="113.280000" version="1" visible="true" />
+  <node id="4" lat="23.125000" lon="113.260000" version="1" visible="true" />
+  <node id="5" lat="23.125000" lon="113.270000" version="1" visible="true" />
+  <node id="6" lat="23.125000" lon="113.280000" version="1" visible="true" />
+  <node id="7" lat="23.130000" lon="113.260000" version="1" visible="true" />
+  <node id="8" lat="23.130000" lon="113.270000" version="1" visible="true" />
+  <node id="9" lat="23.130000" lon="113.280000" version="1" visible="true" />
+
+  <way id="101" version="1" visible="true">
+    <nd ref="1" /><nd ref="2" /><nd ref="3" />
+    <tag k="highway" v="secondary" /><tag k="name" v="测试东西路" /><tag k="oneway" v="no" /><tag k="maxspeed" v="40" />
+  </way>
+  <way id="102" version="1" visible="true">
+    <nd ref="4" /><nd ref="5" /><nd ref="6" />
+    <tag k="highway" v="residential" /><tag k="name" v="测试中路" /><tag k="oneway" v="no" /><tag k="maxspeed" v="30" />
+  </way>
+  <way id="103" version="1" visible="true">
+    <nd ref="7" /><nd ref="8" /><nd ref="9" />
+    <tag k="highway" v="secondary" /><tag k="name" v="测试南路" /><tag k="oneway" v="no" /><tag k="maxspeed" v="40" />
+  </way>
+  <way id="104" version="1" visible="true">
+    <nd ref="1" /><nd ref="4" /><nd ref="7" />
+    <tag k="highway" v="residential" /><tag k="name" v="测试西路" /><tag k="oneway" v="no" /><tag k="maxspeed" v="30" />
+  </way>
+  <way id="105" version="1" visible="true">
+    <nd ref="2" /><nd ref="5" /><nd ref="8" />
+    <tag k="highway" v="secondary" /><tag k="name" v="测试中轴路" /><tag k="oneway" v="no" /><tag k="maxspeed" v="40" />
+  </way>
+  <way id="106" version="1" visible="true">
+    <nd ref="3" /><nd ref="6" /><nd ref="9" />
+    <tag k="highway" v="residential" /><tag k="name" v="测试东路" /><tag k="oneway" v="no" /><tag k="maxspeed" v="30" />
+  </way>
+</osm>
