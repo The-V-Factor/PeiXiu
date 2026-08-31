@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseRoutingManifest, selectTilesForRoute } from "../../src/routing/tiles/manifest.js";
-import { createManifestTileSourceFactory } from "../../src/routing/tiles/provider.js";
+import { createManifestTileSourceFactory, createRoutingTileProvider } from "../../src/routing/tiles/provider.js";
 
 const input = {
   start: { lat: 23.12, lon: 113.26 },
@@ -37,6 +37,24 @@ function okBytes(value) {
   return { ok: true, status: 200, arrayBuffer: async () => value };
 }
 
+function createFakeStorage() {
+  const values = new Map();
+  return {
+    async get(key) {
+      return values.get(key)?.slice(0) ?? null;
+    },
+    async set(key, bytes) {
+      values.set(key, bytes.slice(0));
+    },
+    async clear({ region, graphVersion } = {}) {
+      for (const key of values.keys()) {
+        const [keyRegion, keyGraphVersion] = key.split("/", 3);
+        if ((!region || keyRegion === region) && (!graphVersion || keyGraphVersion === graphVersion)) values.delete(key);
+      }
+    },
+  };
+}
+
 test("validates manifest metadata and tile paths", () => {
   assert.deepEqual(selectTilesForRoute(manifest, input).map((tile) => tile.tileId), ["near"]);
   assert.throws(
@@ -58,11 +76,20 @@ test("downloads only selected tiles and reuses them by graph version", async () 
 
   const first = await factory("guangzhou-mini", input);
   const second = await factory("guangzhou-mini", input);
+  assert.deepEqual(factory.getStats(), {
+    memoryHits: 1,
+    persistentHits: 0,
+    downloads: 1,
+    failures: 0,
+  });
+  await factory.clearCache({ region: "guangzhou-mini", graphVersion: "graph-test-001" });
+  await factory("guangzhou-mini", input);
 
   assert.equal(first.entries.length, 1);
   assert.equal(second.entries.length, 1);
   assert.deepEqual(calls, [
     "/routing/guangzhou-mini/manifest.json",
+    "/routing/guangzhou-mini/graph-test-001/1/near.gph",
     "/routing/guangzhou-mini/graph-test-001/1/near.gph",
   ]);
 });
@@ -83,4 +110,65 @@ test("reports missing graph tiles with HTTP status and path", async () => {
     factory("guangzhou-mini", input),
     /Graph tile request failed: HTTP 404 \(1\/near\.gph\)/,
   );
+});
+
+test("uses persistent cache before HTTP and isolates graph versions", async () => {
+  const storage = createFakeStorage();
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    return okBytes(new Uint8Array([url.includes("v2") ? 2 : 1]).buffer);
+  };
+  const provider = createRoutingTileProvider({ storage, fetchImpl });
+  const tile = manifest.tiles[0];
+  const versionOne = { ...manifest, graphVersion: "graph-test-v1", baseUrl: "/routing/guangzhou-mini/graph-test-v1" };
+  const versionTwo = { ...manifest, graphVersion: "graph-test-v2", baseUrl: "/routing/guangzhou-mini/graph-test-v2" };
+
+  await provider.getTile(versionOne, tile);
+  await provider.getTile(versionTwo, tile);
+  const persistentProvider = createRoutingTileProvider({ storage, fetchImpl });
+  await persistentProvider.getTile(versionOne, tile);
+
+  assert.deepEqual(calls, [
+    "/routing/guangzhou-mini/graph-test-v1/1/near.gph",
+    "/routing/guangzhou-mini/graph-test-v2/1/near.gph",
+  ]);
+  assert.deepEqual(provider.getStats(), {
+    memoryHits: 0,
+    persistentHits: 0,
+    downloads: 2,
+    failures: 0,
+  });
+  assert.equal(persistentProvider.getStats().persistentHits, 1);
+  await persistentProvider.clear({ graphVersion: "graph-test-v1" });
+  await persistentProvider.getTile(versionOne, tile);
+  await persistentProvider.getTile(versionTwo, tile);
+  assert.deepEqual(calls, [
+    "/routing/guangzhou-mini/graph-test-v1/1/near.gph",
+    "/routing/guangzhou-mini/graph-test-v2/1/near.gph",
+    "/routing/guangzhou-mini/graph-test-v1/1/near.gph",
+  ]);
+});
+
+test("retries failed downloads, records failures, and clear permits redownload", async () => {
+  const storage = createFakeStorage();
+  let attempts = 0;
+  const provider = createRoutingTileProvider({
+    storage,
+    maxAttempts: 2,
+    fetchImpl: async () => {
+      attempts += 1;
+      if (attempts <= 2) return { ok: false, status: 503, arrayBuffer: async () => new ArrayBuffer(0) };
+      return okBytes(new Uint8Array([3]).buffer);
+    },
+  });
+
+  await assert.rejects(provider.getTile(manifest, manifest.tiles[0]), /HTTP 503/);
+  assert.equal(provider.getStats().failures, 1);
+  await provider.getTile(manifest, manifest.tiles[0]);
+  assert.equal(provider.getStats().downloads, 1);
+  await provider.clear({ region: manifest.region, graphVersion: manifest.graphVersion });
+  await provider.getTile(manifest, manifest.tiles[0]);
+  assert.equal(provider.getStats().downloads, 2);
+  assert.equal(attempts, 4);
 });
