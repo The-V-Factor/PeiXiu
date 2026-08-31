@@ -1,0 +1,13 @@
+{
+  "caseA": {
+    "name": "motorcycle route without exclusions",
+    "start": { "lat": 23.12, "lon": 113.26 },
+    "end": { "lat": 23.13, "lon": 113.28 }
+  },
+  "caseB": {
+    "name": "motorcycle route with an exclusion point",
+    "start": { "lat": 23.12, "lon": 113.26 },
+    "end": { "lat": 23.13, "lon": 113.28 },
+    "excludeLocations": [{ "lat": 23.1234, "lon": 113.2678 }]
+  }
+}
