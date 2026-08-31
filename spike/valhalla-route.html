@@ -5,31 +5,87 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>PeiXiu · Valhalla WASM Spike</title>
     <style>
-      body { max-width: 900px; margin: 2rem auto; padding: 0 1rem; font: 16px/1.5 system-ui, sans-serif; }
-      pre { padding: 1rem; overflow: auto; background: #f4f4f5; border-radius: 8px; }
-      button { padding: 0.6rem 0.9rem; cursor: pointer; }
-      .status { color: #854d0e; }
+      :root { color: #172033; background: #f4f7fb; font: 16px/1.5 system-ui, sans-serif; }
+      body { max-width: 900px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+      section { margin-top: 1rem; padding: 1.25rem; background: white; border: 1px solid #dbe3ef; border-radius: 14px; box-shadow: 0 8px 24px #1720330d; }
+      .status { color: #53627a; }
+      .actions { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+      button { padding: 0.65rem 0.9rem; color: white; background: #2563eb; border: 0; border-radius: 8px; cursor: pointer; }
+      button.secondary { background: #475569; }
+      pre { min-height: 4rem; padding: 1rem; overflow: auto; background: #f1f5f9; border-radius: 8px; }
+      code { color: #9f1239; }
     </style>
   </head>
   <body>
     <h1>Valhalla WASM Spike</h1>
-    <p class="status">当前阶段：请求/响应边界验证；WASM 运行时和 graph tile 尚未接入。</p>
-    <button id="build-request" type="button">生成 motorcycle 请求</button>
-    <h2>请求</h2>
-    <pre id="request">尚未生成</pre>
-    <h2>下一步</h2>
-    <p>接入浏览器 WASM runtime 后，在 Web Worker 中执行相同请求，并验证无远程 /route 请求。</p>
+    <p class="status">当前阶段：验证浏览器 Worker、本地 WASM、测试 graph 和 motorcycle 路线。</p>
+    <section>
+      <h2>验证操作</h2>
+      <div class="actions">
+        <button id="build-request" class="secondary" type="button">仅生成请求</button>
+        <button id="route-a" type="button">运行 Case A</button>
+        <button id="route-b" type="button">运行 Case B（排除点）</button>
+      </div>
+      <p id="status" class="status">等待操作。</p>
+    </section>
+    <section>
+      <h2>请求</h2>
+      <pre id="request">尚未生成</pre>
+    </section>
+    <section>
+      <h2>路线结果</h2>
+      <pre id="result">尚未运行路线。</pre>
+    </section>
 
     <script type="module">
       import { buildRouteRequest } from "../src/routing/valhalla/request.js";
 
       const output = document.querySelector("#request");
-      document.querySelector("#build-request").addEventListener("click", () => {
-        const request = buildRouteRequest({
+      const status = document.querySelector("#status");
+      const result = document.querySelector("#result");
+      const worker = new Worker(new URL("../src/routing/valhalla/worker.ts", import.meta.url));
+      const cases = {
+        caseA: {
           start: { lat: 23.12, lon: 113.26 },
           end: { lat: 23.13, lon: 113.28 },
-        });
-        output.textContent = JSON.stringify(request, null, 2);
+        },
+        caseB: {
+          start: { lat: 23.12, lon: 113.26 },
+          end: { lat: 23.13, lon: 113.28 },
+          excludeLocations: [{ lat: 23.1234, lon: 113.2678 }],
+        },
+      };
+
+      const showRequest = (input) => {
+        output.textContent = JSON.stringify(buildRouteRequest(input), null, 2);
+      };
+
+      document.querySelector("#build-request").addEventListener("click", () => {
+        showRequest(cases.caseA);
+        status.textContent = "已生成 motorcycle 请求，尚未启动 WASM。";
+      });
+
+      const route = (input) => {
+        showRequest(input);
+        result.textContent = "运行中…";
+        status.textContent = "等待 Worker 和本地 WASM 返回结果。";
+        worker.postMessage({ type: "route", region: "guangzhou-mini", input });
+      };
+
+      document.querySelector("#route-a").addEventListener("click", () => route(cases.caseA));
+      document.querySelector("#route-b").addEventListener("click", () => route(cases.caseB));
+      worker.addEventListener("message", ({ data }) => {
+        if (data.type === "progress") {
+          status.textContent = data.message;
+        } else if (data.type === "result") {
+          status.textContent = "路线计算成功。";
+          result.textContent = JSON.stringify(data.result, null, 2);
+        } else if (data.type === "error") {
+          status.textContent = "路线计算失败。";
+          result.textContent = data.message;
+        } else if (data.type === "debug") {
+          status.textContent = data.message;
+        }
       });
     </script>
   </body>
