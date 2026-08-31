@@ -56,3 +56,16 @@ npm run build
 - Cache Storage 只包含 App Shell；`.gph` 不应出现在 Service Worker cache。
 - Network 中 graph tile 来自 R2，manifest 的 `graphVersion` 与 tile 路径一致。
 - 真实设备定位使用 HTTPS。
+
+## 远端 Mac 测试
+
+远端 Docker 测试可使用 `deploy/nginx.conf`，确保 manifest 返回 `application/manifest+json`：
+
+```bash
+/usr/local/bin/docker run -d --rm --name peixiu-test -p <PORT>:80 \
+  -v <DIST_DIR>:/usr/share/nginx/html:ro \
+  -v <REPO_DIR>/deploy/nginx.conf:/etc/nginx/nginx.conf:ro \
+  nginx:alpine
+```
+
+测试结束后只删除本次容器，不要影响同机其他服务。
