@@ -27,3 +27,16 @@ export type RoutingManifest = {
 };
 
 export type TileSourceFactory = (region: string, input: RouteInput) => Promise<TileSource | null>;
+
+export type RoutingTileCacheStats = {
+  memoryHits: number;
+  persistentHits: number;
+  downloads: number;
+  failures: number;
+};
+
+export type RoutingTileCacheStorage = {
+  get(key: string): Promise<ArrayBuffer | null>;
+  set(key: string, bytes: ArrayBuffer): Promise<void>;
+  clear(scope?: { region?: string; graphVersion?: string }): Promise<void>;
+};

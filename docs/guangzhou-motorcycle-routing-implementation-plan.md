@@ -276,9 +276,9 @@ manifest 至少包含：
 
 ```ts
 export interface RoutingTileProvider {
-  getTile(tileId: string, graphVersion: string): Promise<ArrayBuffer>
+  getTile(manifest: RoutingManifest, tile: RoutingManifestTile): Promise<ArrayBuffer>
   getStats(): TileCacheStats
-  clear(graphVersion?: string): Promise<void>
+  clear(scope?: { region?: string, graphVersion?: string }): Promise<void>
 }
 ```
 
@@ -295,6 +295,8 @@ HTTP GET R2 .gph
 ```
 
 必须避免新旧 graph 混用。manifest 更新后，客户端使用新的 `graphVersion` 命名空间；旧缓存可以延迟清理。
+
+当前实现的缓存键为 `region/graphVersion/tileId`，并提供 `clear({ region, graphVersion })`、统计读取和 manifest 刷新入口。IndexedDB 不可用时只跳过持久化层，仍保留内存缓存和 HTTP 路径。
 
 ### 7.3 PWA 缓存边界
 
