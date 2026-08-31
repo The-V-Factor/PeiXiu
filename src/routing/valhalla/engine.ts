@@ -1,6 +1,7 @@
 import { parseTarIndex, type TileSource } from "valhalla-wasm";
 import { buildRouteRequest } from "./request.js";
 import type { RouteInput, RouteResult } from "../types.js";
+import type { TileSourceFactory } from "../tiles/types.js";
 
 type ValhallaModule = {
   FS: any;
@@ -8,8 +9,6 @@ type ValhallaModule = {
     route(request: string): string;
   };
 };
-
-type TileSourceFactory = (region: string) => Promise<TileSource | null>;
 
 const valhallaConfig = {
   mjolnir: {
@@ -106,7 +105,7 @@ const mkdirp = (fs: any, path: string) => {
   }
 };
 
-function mountTileSource(fs: any, source: TileSource) {
+function mountTileSource(fs: any, source: TileSource, mountedTiles: Set<string>) {
   const major = Date.now() % 200 + 80;
   let minor = 0;
 
@@ -137,6 +136,7 @@ function mountTileSource(fs: any, source: TileSource) {
 
   for (const entry of source.entries) {
     const cleanName = entry.name.replace(/^\.\//, "");
+    if (mountedTiles.has(cleanName)) continue;
     const filePath = `/valhalla_tiles/${cleanName}`;
     mkdirp(fs, filePath.slice(0, filePath.lastIndexOf("/")));
     const device = fs.makedev(major, minor++);
@@ -148,6 +148,7 @@ function mountTileSource(fs: any, source: TileSource) {
     node.size = entry.size;
     node._tileOffset = entry.offset;
     node._tileSize = entry.size;
+    mountedTiles.add(cleanName);
   }
 }
 
@@ -222,16 +223,18 @@ export function createMotorcycleRoutingEngine(options: {
 }) {
   let module: ValhallaModule | null = null;
   let router: InstanceType<ValhallaModule["ValhallaRouter"]> | null = null;
+  const mountedTiles = new Set<string>();
 
   return async (input: RouteInput, region: string): Promise<RouteResult> => {
     module ??= await options.initModule();
     mkdirp(module.FS, "/valhalla_tiles");
 
-    if (!router) {
-      options.onProgress?.("加载测试 graph…");
-      const source = await options.tileSourceFactory(region);
-      if (!source) throw new Error(`未找到 graph tile: ${region}`);
-      mountTileSource(module.FS, source);
+    options.onProgress?.("加载 graph tile…");
+    const source = await options.tileSourceFactory(region, input);
+    if (!source) throw new Error(`未找到 graph tile: ${region}`);
+    const tileCountBefore = mountedTiles.size;
+    mountTileSource(module.FS, source, mountedTiles);
+    if (!router || mountedTiles.size > tileCountBefore) {
       router = new module.ValhallaRouter(JSON.stringify(valhallaConfig));
     }
 

@@ -2,3 +2,7 @@ node_modules/
 dist/
 .codex/
 public/tiles/
+spike/fixtures/guangzhou-mini.osm.pbf
+spike/fixtures/guangzhou-mini-routing.tar
+spike/fixtures/guangzhou-mini.json
+spike/fixtures/guangzhou-mini_valhalla/

@@ -1,0 +1,33 @@
+{
+  "region": "guangzhou-mini",
+  "graphVersion": "graph-2026-08-31-001",
+  "tileFormat": "valhalla-gph",
+  "baseUrl": "/routing/guangzhou-mini/graph-2026-08-31-001",
+  "generatedAt": "2026-08-31T00:00:00Z",
+  "source": {
+    "osmFixture": "spike/fixtures/guangzhou-mini.osm",
+    "osmFixtureSha256": "606b91294734551bc6be6b31d88c8da5df1b43e8f6596c3f3bb26c6224d8aad4",
+    "osmPbfSha256": "65dbc43a31911df3e1bdf3a58d4133dcffb627d46777ad6a05ada928728d8df0",
+    "valhallaWasmSourceCommit": "0246aee917aa4d72808d277cf560ac859c2ee227",
+    "valhallaRef": "f7764b337de93530374ac90978f638734139d93b",
+    "vcpkgRef": "89dd0f4d241136b843fb55813b2f0fa6448c204d",
+    "emscriptenSdk": "6.0.0",
+    "tileBuilder": "ghcr.io/gis-ops/docker-valhalla/valhalla:latest"
+  },
+  "tiles": [
+    {
+      "tileId": "1/040/973",
+      "path": "1/040/973.gph",
+      "bounds": { "west": 113.25, "south": 23.11, "east": 113.29, "north": 23.14 },
+      "sizeBytes": 1472,
+      "sha256": "2f5cab3ef5ac8ff7b32b6ce19db6da656fa01f6d9c7852f0c8009f0e199004a"
+    },
+    {
+      "tileId": "2/000/652/053",
+      "path": "2/000/652/053.gph",
+      "bounds": { "west": 113.25, "south": 23.11, "east": 113.29, "north": 23.14 },
+      "sizeBytes": 1448,
+      "sha256": "4ef4c18ca9230e62defeea3ead9ac16dea035f5633505391cea85ba102d50f90"
+    }
+  ]
+}
