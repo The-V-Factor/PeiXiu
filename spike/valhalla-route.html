@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PeiXiu · Valhalla WASM Spike</title>
+    <style>
+      body { max-width: 900px; margin: 2rem auto; padding: 0 1rem; font: 16px/1.5 system-ui, sans-serif; }
+      pre { padding: 1rem; overflow: auto; background: #f4f4f5; border-radius: 8px; }
+      button { padding: 0.6rem 0.9rem; cursor: pointer; }
+      .status { color: #854d0e; }
+    </style>
+  </head>
+  <body>
+    <h1>Valhalla WASM Spike</h1>
+    <p class="status">当前阶段：请求/响应边界验证；WASM 运行时和 graph tile 尚未接入。</p>
+    <button id="build-request" type="button">生成 motorcycle 请求</button>
+    <h2>请求</h2>
+    <pre id="request">尚未生成</pre>
+    <h2>下一步</h2>
+    <p>接入浏览器 WASM runtime 后，在 Web Worker 中执行相同请求，并验证无远程 /route 请求。</p>
+
+    <script type="module">
+      import { buildRouteRequest } from "../src/routing/valhalla/request.js";
+
+      const output = document.querySelector("#request");
+      document.querySelector("#build-request").addEventListener("click", () => {
+        const request = buildRouteRequest({
+          start: { lat: 23.12, lon: 113.26 },
+          end: { lat: 23.13, lon: 113.28 },
+        });
+        output.textContent = JSON.stringify(request, null, 2);
+      });
+    </script>
+  </body>
+</html>
