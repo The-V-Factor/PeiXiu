@@ -1,0 +1,19 @@
+{
+  "name": "PeiXiu · 广州摩托导航",
+  "short_name": "PeiXiu",
+  "description": "广州范围的浏览器本地摩托车辅助导航",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#edf2f7",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

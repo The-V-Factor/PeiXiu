@@ -7,6 +7,7 @@ import {
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./main.css";
+import { registerServiceWorker } from "./pwa/register.js";
 import { loadCameraDataset } from "./restrictions/cameras.js";
 import type { CameraAwareRouteResult, CameraDataset } from "./restrictions/types.js";
 import type { Coordinate } from "./routing/types.js";
@@ -16,6 +17,8 @@ const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) {
   throw new Error("Missing application root");
 }
+
+registerServiceWorker();
 
 app.innerHTML = `
   <div class="app-shell">

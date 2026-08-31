@@ -1,0 +1,14 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://peixiu.pages.dev",
+          "http://localhost:5173"
+        ],
+        "methods": ["GET"]
+      },
+      "maxAgeSeconds": 3600
+    }
+  ]
+}
