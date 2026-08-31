@@ -12,6 +12,7 @@
     "vite": "^6.0.0"
   },
   "dependencies": {
+    "maplibre-gl": "^6.6.0",
     "valhalla-wasm": "0.1.0"
   }
 }

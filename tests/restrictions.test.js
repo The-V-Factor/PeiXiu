@@ -60,6 +60,7 @@ test("runs a second route with nearby camera coordinates", async () => {
   assert.equal(result.cameraAvoidanceStatus, "applied");
   assert.equal(result.avoidedCameraCount, 1);
   assert.equal(result.distanceMeters, 1200);
+  assert.equal(result.primaryRoute, route);
 });
 
 test("returns the primary route with an explicit warning when camera data fails", async () => {
@@ -81,4 +82,5 @@ test("returns the primary route with an explicit warning when camera data fails"
   assert.equal(result.cameraAvoidanceStatus, "unavailable");
   assert.equal(result.cameraAvoidanceMessage, "摄像头数据未加载，本次路线未进行摄像头避让。");
   assert.equal(result.avoidedCameraCount, 0);
+  assert.equal(result.primaryRoute, route);
 });

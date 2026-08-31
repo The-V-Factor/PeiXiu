@@ -14,6 +14,7 @@ export async function routeWithCameraAvoidance(input, options) {
   } catch (_error) {
     return {
       ...primaryRoute,
+      primaryRoute,
       avoidedCameraCount: 0,
       cameraAvoidanceStatus: "unavailable",
       cameraAvoidanceMessage: CAMERA_DATA_UNAVAILABLE,
@@ -24,6 +25,7 @@ export async function routeWithCameraAvoidance(input, options) {
   if (nearbyCameras.length === 0) {
     return {
       ...primaryRoute,
+      primaryRoute,
       avoidedCameraCount: 0,
       cameraAvoidanceStatus: "not-needed",
     };
@@ -36,12 +38,14 @@ export async function routeWithCameraAvoidance(input, options) {
     });
     return {
       ...avoidedRoute,
+      primaryRoute,
       avoidedCameraCount: nearbyCameras.length,
       cameraAvoidanceStatus: "applied",
     };
   } catch (_error) {
     return {
       ...primaryRoute,
+      primaryRoute,
       avoidedCameraCount: 0,
       cameraAvoidanceStatus: "failed",
       cameraAvoidanceMessage: CAMERA_ROUTE_FAILED,
