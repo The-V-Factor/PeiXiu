@@ -5,9 +5,10 @@
     "end": { "lat": 23.13, "lon": 113.28 }
   },
   "caseB": {
-    "name": "motorcycle route with an exclusion point",
+    "name": "motorcycle route with a camera corridor exclusion",
     "start": { "lat": 23.12, "lon": 113.26 },
     "end": { "lat": 23.13, "lon": 113.28 },
-    "excludeLocations": [{ "lat": 23.1234, "lon": 113.2678 }]
+    "cameraId": "gz-mini-camera-001",
+    "camera": { "lat": 23.125, "lon": 113.27 }
   }
 }

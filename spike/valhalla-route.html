@@ -48,11 +48,12 @@
         caseA: {
           start: { lat: 23.12, lon: 113.26 },
           end: { lat: 23.13, lon: 113.28 },
+          avoidCameras: false,
         },
         caseB: {
           start: { lat: 23.12, lon: 113.26 },
           end: { lat: 23.13, lon: 113.28 },
-          excludeLocations: [{ lat: 23.1234, lon: 113.2678 }],
+          avoidCameras: true,
         },
       };
 
@@ -65,11 +66,11 @@
         status.textContent = "已生成 motorcycle 请求，尚未启动 WASM。";
       });
 
-      const route = (input) => {
+      const route = ({ avoidCameras, ...input }) => {
         showRequest(input);
         result.textContent = "运行中…";
         status.textContent = "等待 Worker 和本地 WASM 返回结果。";
-        worker.postMessage({ type: "route", region: "guangzhou-mini", input });
+        worker.postMessage({ type: "route", region: "guangzhou-mini", input, avoidCameras });
       };
 
       document.querySelector("#route-a").addEventListener("click", () => route(cases.caseA));
@@ -78,7 +79,10 @@
         if (data.type === "progress") {
           status.textContent = data.message;
         } else if (data.type === "result") {
-          status.textContent = "路线计算成功。";
+          status.textContent = data.result.cameraAvoidanceMessage
+            ?? (data.result.cameraAvoidanceStatus === "applied"
+              ? `路线计算成功，已避开 ${data.result.avoidedCameraCount} 个已知点位。`
+              : "路线计算成功。");
           result.textContent = JSON.stringify(data.result, null, 2);
         } else if (data.type === "error") {
           status.textContent = "路线计算失败。";
