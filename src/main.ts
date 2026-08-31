@@ -220,7 +220,11 @@ function requestLocation() {
       setStatus("已取得当前位置，请点击地图选择目的地。");
     },
     (error) => {
-      const message = error.code === error.PERMISSION_DENIED ? "定位权限被拒绝，请点击地图设置起点。" : "暂时无法取得当前位置，请点击地图设置起点。";
+      const message = error.code === error.PERMISSION_DENIED
+        ? "定位权限被拒绝，请点击地图设置起点。"
+        : error.code === error.TIMEOUT
+          ? "定位请求超时，请重试或点击地图设置起点。"
+          : "暂时无法取得当前位置，请点击地图设置起点。";
       setStatus(message);
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
@@ -246,8 +250,10 @@ function showResult(result: CameraAwareRouteResult) {
 
 const worker = new Worker(new URL("./routing/valhalla/worker.ts", import.meta.url));
 worker.addEventListener("message", ({ data }) => {
-  if (data.type === "progress" || data.type === "debug") {
+  if (data.type === "progress") {
     setStatus(data.message);
+  } else if (data.type === "debug") {
+    setStatus("本地路线引擎正在工作…");
   } else if (data.type === "result") {
     routing = false;
     routeButton.disabled = false;
@@ -255,13 +261,13 @@ worker.addEventListener("message", ({ data }) => {
   } else if (data.type === "error") {
     routing = false;
     routeButton.disabled = false;
-    setStatus(`路线计算失败：${data.message}`);
+    setStatus(`${data.message}${data.retryable ? " 可点击“规划路线”重试。" : " 请重新选择地点。"}`);
   }
 });
 worker.addEventListener("error", ({ message }) => {
   routing = false;
   routeButton.disabled = false;
-  setStatus(message || "本地路线 Worker 启动失败。");
+  setStatus("本地路线 Worker 启动失败，请刷新页面后重试。");
 });
 
 map.on("load", () => {

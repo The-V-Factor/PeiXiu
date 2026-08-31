@@ -1,6 +1,7 @@
 import { parseTarIndex, type TileSource } from "valhalla-wasm";
 import { buildRouteRequest } from "./request.js";
 import type { RouteInput, RouteResult } from "../types.js";
+import { RoutingError } from "../errors.js";
 import type { TileSourceFactory } from "../tiles/types.js";
 
 type ValhallaModule = {
@@ -226,7 +227,13 @@ export function createMotorcycleRoutingEngine(options: {
   const mountedTiles = new Set<string>();
 
   return async (input: RouteInput, region: string): Promise<RouteResult> => {
-    module ??= await options.initModule();
+    if (!module) {
+      try {
+        module = await options.initModule();
+      } catch (error) {
+        throw new RoutingError("wasm-init", error);
+      }
+    }
     mkdirp(module.FS, "/valhalla_tiles");
 
     options.onProgress?.("加载 graph tile…");

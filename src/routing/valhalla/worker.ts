@@ -4,6 +4,7 @@ import { createMotorcycleRoutingEngine } from "./engine.js";
 import { loadCameraDataset } from "../../restrictions/cameras.js";
 import { routeWithCameraAvoidance } from "../../restrictions/avoidance.js";
 import { createManifestTileSourceFactory } from "../tiles/provider.js";
+import { toRoutingError } from "../errors.js";
 import type { RouteInput } from "../types.js";
 
 type WorkerRequest = {
@@ -51,6 +52,12 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       : await engine(event.data.input, event.data.region);
     self.postMessage({ type: "result", result });
   } catch (error) {
-    self.postMessage({ type: "error", message: error instanceof Error ? error.message : String(error) });
+    const routingError = toRoutingError(error);
+    self.postMessage({
+      type: "error",
+      code: routingError.code,
+      message: routingError.userMessage,
+      retryable: routingError.retryable,
+    });
   }
 };
