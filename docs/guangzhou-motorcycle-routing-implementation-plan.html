@@ -42,11 +42,11 @@
 <main>
   <header>
     <h1>广州摩托车摄像头避让导航 Web/PWA 实施方案</h1>
-    <div>v1.0 · 2026-08-25 · 免费、广州范围、浏览器本地路线计算、按已知摄像头点位做简单避让</div>
+    <div>项目 v0.0.1（MVP 已完成） · 2026-09-01 · 免费、广州范围、浏览器本地路线计算、按已知摄像头点位做简单避让</div>
   </header>
 
   <div class="callout good">
-    <strong>执行结论：</strong>先做 Valhalla WASM Spike，再做广州图数据和摄像头点位避让。Valhalla 是首选；如果无法稳定支持浏览器图块按需加载，则评估 omt-router，并明确只能使用 car 近似摩托车。
+    <strong>执行结论：</strong>MVP 已完成并部署到 <a href="https://peixiu.pages.dev/">Cloudflare Pages</a>。当前使用 Valhalla WASM、真实广州 OSM graph、独立路网数据仓库和 jsDelivr；合成 graph 仅保留用于 Spike 和回归测试。
   </div>
 
   <h2>1. 目标与边界</h2>
@@ -218,7 +218,7 @@ HTTP GET jsDelivr .gph
       <tr><td>计算</td><td>浏览器 WASM / JavaScript Worker</td></tr>
     </tbody>
   </table>
-  <p>graph tile 不进入 PeiXiu 主代码仓库，使用独立公开数据仓库和 jsDelivr 的 commit URL 固定版本；发布时保留 OSM 来源、checksum、归属和许可证说明。参考：<a href="https://github.com/jsdelivr/jsdelivr/blob/master/README.md">jsDelivr</a>、<a href="https://developers.cloudflare.com/pages/platform/limits/">Pages Limits</a>。</p>
+  <p>graph tile 不进入 PeiXiu 主代码仓库，使用独立公开数据仓库和 jsDelivr 的稳定 <code>@main</code> manifest 入口；manifest 内的 graph 使用 commit URL 固定版本。发布时保留 OSM 来源、checksum、归属和许可证说明。参考：<a href="https://github.com/jsdelivr/jsdelivr/blob/master/README.md">jsDelivr</a>、<a href="https://developers.cloudflare.com/pages/platform/limits/">Pages Limits</a>。</p>
 
   <h2>12. MVP 验收标准</h2>
   <ul>

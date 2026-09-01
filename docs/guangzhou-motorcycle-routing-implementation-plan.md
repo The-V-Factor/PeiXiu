@@ -1,10 +1,12 @@
 # 广州摩托车摄像头避让导航 Web/PWA 实施方案
 
-> 版本：v1.1
+> 方案版本：v1.2
 >
-> 日期：2026-08-31
+> 日期：2026-09-01
 >
-> 定位：免费、广州范围、浏览器本地路线计算、按已知摄像头点位做简单避让的 MVP。当前 Valhalla Spike 使用合成测试路网；产品化前必须替换为真实广州 OSM 路网。
+> 项目版本：v0.0.1（MVP 已完成）
+>
+> 定位：免费、广州范围、浏览器本地路线计算、按已知摄像头点位做简单避让的 MVP。当前版本使用真实广州 OSM graph；合成路网仅保留用于 Spike 和回归测试。
 
 ## 1. 目标与边界
 
@@ -58,7 +60,7 @@ V1 仍保持广州范围，不因引入广东下载源而扩大为广东省路�
 
 Valhalla 官方路由 API 支持 `motorcycle`，也支持 `exclude_locations` 将坐标附近道路排除。[官方 Route API](https://valhalla.github.io/valhalla/api/route/api-reference/)
 
-但是官方 Valhalla 主要面向原生平台和服务端部署，浏览器 WASM 不是现成的低风险产品化能力。因此先用小型合成 fixture 做 Spike，随后必须使用真实广州 graph 做产品化验证。需要验证指定 WASM 构建是否能够：
+但是官方 Valhalla 主要面向原生平台和服务端部署，浏览器 WASM 不是现成的低风险产品化能力。本项目已经完成 Spike 和真实广州 graph 验证，当前实现能够：
 
 1. 在浏览器启动。
 2. 读取版本化 graph tile。
@@ -292,7 +294,7 @@ manifest 至少包含：
 - 生成的 graph bounds 必须来自实际 graph 数据，并用于前端范围校验和展示。
 - 将当前合成 graph 保留为 Spike/回归 fixture，与真实广州 graph 使用不同的 `region` 或 `graphVersion`，禁止混用。
 
-真实路网替换完成前，测试页面应明确显示“合成测试路网，仅用于引擎验证”，避免用户把规则网格路线理解为真实道路路线。
+合成 fixture 仍须明确显示为“合成测试路网，仅用于引擎验证”；正式页面显示真实 OSM 路网，并通过稳定 manifest 入口加载当前 graph 版本。
 
 ### 7.2 Tile Provider
 
@@ -593,28 +595,28 @@ flowchart TD
     O2 -->|否| X
 ```
 
-## 13. MVP 验收标准
+## 13. MVP 验收标准（v0.0.1）
 
 ```text
-[ ] 页面可以显示广州地图
-[ ] 可以点击地图设置目的地
-[ ] 可以获取 GPS，失败时可以手动选择起点
-[ ] 浏览器本地启动路由引擎
-[ ] 没有调用远程 route API
-[ ] 首选引擎使用 motorcycle
-[ ] 可以加载真实广州 graph tile
-[ ] graph tile 按需下载
-[ ] graph tile 有本地缓存
-[ ] 可以加载广州摄像头 JSON
-[ ] 可以显示摄像头点位
-[ ] 可以进行第二次摄像头避让路线计算
-[ ] exclude_locations 或备用引擎的等价禁用道路逻辑实际生效
-[ ] 地图显示最终路线
-[ ] 显示距离和预计时间
-[ ] 显示已避开摄像头数量
-[ ] PWA 可以安装
-[ ] 可以部署到 Cloudflare Pages + jsDelivr
-[ ] 小规模使用不依赖付费 Routing API
+[x] 页面可以显示广州地图
+[x] 可以点击地图设置目的地
+[x] 可以获取 GPS，失败时可以手动选择起点
+[x] 浏览器本地启动路由引擎
+[x] 没有调用远程 route API
+[x] 首选引擎使用 motorcycle
+[x] 可以加载真实广州 graph tile
+[x] graph tile 按需下载
+[x] graph tile 有本地缓存
+[x] 可以加载广州摄像头 JSON
+[x] 可以显示摄像头点位
+[x] 可以进行第二次摄像头避让路线计算
+[x] exclude_locations 或备用引擎的等价禁用道路逻辑实际生效
+[x] 地图显示最终路线
+[x] 显示距离和预计时间
+[x] 显示已避开摄像头数量
+[x] PWA 可以安装
+[x] 可以部署到 Cloudflare Pages + jsDelivr
+[x] 小规模使用不依赖付费 Routing API
 ```
 
 ## 14. 最终执行原则
