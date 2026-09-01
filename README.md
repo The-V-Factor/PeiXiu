@@ -2,28 +2,42 @@
 
 > 面向广州的免费 Web/PWA 摩托车辅助导航实验项目
 
-![Status](https://img.shields.io/badge/status-planning%20%26%20spike-blue)
+![Status](https://img.shields.io/badge/status-MVP%20complete-success)
+![Version](https://img.shields.io/badge/version-v0.0.1-blue)
 ![Region](https://img.shields.io/badge/region-Guangzhou-red)
 ![Routing](https://img.shields.io/badge/routing-browser--local-green)
 ![Cost](https://img.shields.io/badge/cost-free-brightgreen)
 
-PeiXiu 计划做一个**浏览器本地计算路线**的广州摩托车辅助导航工具：用户选择起点和终点后，在本地完成路线规划，并根据已知摄像头抓拍点位尝试生成避让路线。
+PeiXiu 是一个**浏览器本地计算路线**的广州摩托车辅助导航 MVP：用户选择起点和终点后，在本地完成路线规划，并根据已知摄像头抓拍点位尝试生成避让路线。
 
 项目坚持轻量、免费和可验证，暂时不追求全国覆盖，也不把复杂的禁摩法规全部编码进系统。
 
+## 项目信息
+
+| 项目 | 当前信息 |
+| --- | --- |
+| 版本 | `v0.0.1` |
+| 状态 | MVP 已完成 |
+| 正式地址 | [peixiu.pages.dev](https://peixiu.pages.dev/) |
+| 覆盖范围 | 广州 |
+| 前端托管 | Cloudflare Pages |
+| 路网数据 | 真实广州 OSM graph，独立仓库 + jsDelivr |
+| 路线计算 | 浏览器本地 Valhalla WASM Worker |
+
 ## 当前状态
 
-项目目前处于 **方案整理与关键技术 Spike 阶段**，还没有可供日常使用的完整导航应用。当前页面使用的 `guangzhou-mini` graph 是人工生成的合成网格，仅用于验证引擎流程，不能代表真实广州道路。
+**MVP v0.0.1 已完成并部署。**正式访问地址：[peixiu.pages.dev](https://peixiu.pages.dev/)。
 
-当前最重要的验证顺序：
+当前版本已经完成：
 
-1. 在浏览器中启动 Valhalla WASM；
-2. 读取版本化 graph tile；
-3. 验证 `motorcycle` 路由；
-4. 验证 `exclude_locations` 是否能绕开测试摄像头点位；
-5. Spike 通过后，再开始地图 UI 和 PWA 开发。
+- 广州范围的 MapLibre 地图和起终点选择；
+- 浏览器 Web Worker 中的 Valhalla WASM `motorcycle` 路线计算；
+- 真实广州 OSM graph 按需加载与 IndexedDB 缓存；
+- 已知摄像头点位展示和路线走廊避让；
+- PWA App Shell、Service Worker 和 Cloudflare Pages 部署；
+- 独立路网数据仓库 + jsDelivr 的版本化 graph 发布。
 
-产品化前的下一项关键工作是：使用真实广州 OSM 数据裁剪并构建 Valhalla graph，验证路线几何与底图道路一致后，才将页面作为真实道路路线展示。
+当前版本仍是辅助参考工具，不是实时导航产品。后续功能如地址搜索、实时交通、实时摄像头同步和更完整的摩托车通行规则，均不属于本 MVP。
 
 ## 项目边界
 
@@ -59,9 +73,9 @@ flowchart LR
     I[Cloudflare Pages] --> B
 ```
 
-### 首选：Valhalla WASM
+### MVP 实现：Valhalla WASM
 
-Valhalla 原生支持 `motorcycle` costing，也提供 `exclude_locations`。但浏览器 WASM、graph tile 按需加载和异步文件系统需要实际验证，因此不会跳过 Spike 直接做完整 UI。
+Valhalla 原生支持 `motorcycle` costing，也提供 `exclude_locations`。MVP 已验证浏览器 WASM、graph tile 按需加载、异步文件系统和摄像头避让流程。
 
 ### 备用：omt-router
 
@@ -102,7 +116,7 @@ flowchart TD
 
 实施方案包含技术路线、架构图、核心流程、数据模型、Spike 任务和验收标准。
 
-## 计划中的模块
+## 主要模块
 
 ```text
 map/                 地图、当前位置、目的地和路线图层
@@ -121,4 +135,4 @@ tools/routing-data/  广州 OSM 数据与 Graph tile 构建工具
 
 ## License
 
-项目许可证将在首个可运行版本前确定，并在仓库中补充正式的 `LICENSE` 文件。
+项目自身许可证仍待确定；OpenStreetMap 数据按 ODbL 许可并保留来源和署名信息，依赖项遵循各自许可证。
