@@ -4,7 +4,7 @@
 
 - Cloudflare Pages 只提供前端 App Shell、JS/CSS、WASM、图标和 manifest。
 - Valhalla `.gph` tile 发布到独立的公开路网数据仓库，再由 jsDelivr 分发，不由 Service Worker 全量 precache。
-- 当前 `public/routing/guangzhou-mini` 是本地/小规模 fixture；生产 graph 发布前需把 manifest 的 `baseUrl` 指向 jsDelivr 的固定 commit URL。
+- 当前 `public/routing/guangzhou-mini` 是本地/小规模 fixture；广州正式 manifest 使用独立数据仓库的稳定 `@main` 入口，manifest 内的 `baseUrl` 仍指向固定 graph commit URL。
 - 不部署长期运行的 Routing Server，也不把 `/route` 请求发送到远程服务。
 
 ## Pages
@@ -35,13 +35,19 @@ routing/guangzhou/graph-2026-09-01-001/2/000/652/053.gph
 将 public/routing/guangzhou 复制到独立数据仓库的 routing/guangzhou，提交后使用 commit SHA 生成固定 jsDelivr URL。
 ```
 
-生产构建时设置 manifest 地址：
+默认构建会使用稳定 manifest 入口，不需要设置环境变量：
+
+```text
+https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routing-data@main/routing/guangzhou/manifest.json
+```
+
+如需测试指定版本、回滚或使用本地 fixture，可覆盖 manifest 地址：
 
 ```bash
 VITE_ROUTING_MANIFEST_URL=https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routing-data@<manifest-commit>/routing/guangzhou/manifest.json npm run build
 ```
 
-manifest 的 `baseUrl` 必须指向同一个数据仓库 commit 下的 graph 目录；`.gph` 使用固定 commit URL，不能覆盖已发布版本。
+manifest 的 `baseUrl` 必须指向同一个数据仓库 commit 下的 graph 目录；`.gph` 使用固定 commit URL，不能覆盖已发布版本。更新 routing data 时只需发布数据仓库的 `main`，不需要修改 PeiXiu 或 Cloudflare 的变量。
 
 ## 发布前检查
 

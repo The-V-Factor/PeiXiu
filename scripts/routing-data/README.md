@@ -35,7 +35,7 @@ node scripts/routing-data/publish-jsdelivr.mjs \
   --push
 ```
 
-脚本会输出最终的远程 manifest URL。主项目构建时将该 URL 设置为 `VITE_ROUTING_MANIFEST_URL`，不需要把 graph 文件提交到主代码仓库。
+脚本会输出本次发布的固定 manifest URL，便于验收、回滚和环境覆盖。正式构建默认使用数据仓库 `main` 分支下的稳定 manifest 入口；更新 routing data 时只需发布数据仓库，不需要把 graph 文件提交到主代码仓库，也不需要修改主项目代码。
 
 ## 验收
 
