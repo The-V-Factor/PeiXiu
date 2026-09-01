@@ -1,7 +1,7 @@
 const errorDetails = {
   "wasm-init": { message: "本地路线引擎启动失败，请重试。", retryable: true },
   "graph-tile": { message: "地图数据加载失败，请检查网络后重试。", retryable: true },
-  "outside-region": { message: "起点或目的地超出广州测试路网范围，请重新选点。", retryable: false },
+  "outside-region": { message: "起点或目的地超出当前测试路网范围（蓝色边界），请重新选点。", retryable: false },
   "no-route": { message: "当前两点之间没有可用摩托车路线，请更换地点。", retryable: false },
   unknown: { message: "本地路线计算失败，请重试。", retryable: true },
 };

@@ -1,10 +1,10 @@
 # 广州摩托车摄像头避让导航 Web/PWA 实施方案
 
-> 版本：v1.0
+> 版本：v1.1
 >
-> 日期：2026-08-25
+> 日期：2026-08-31
 >
-> 定位：免费、广州范围、浏览器本地路线计算、按已知摄像头点位做简单避让的 MVP。
+> 定位：免费、广州范围、浏览器本地路线计算、按已知摄像头点位做简单避让的 MVP。当前 Valhalla Spike 使用合成测试路网；产品化前必须替换为真实广州 OSM 路网。
 
 ## 1. 目标与边界
 
@@ -42,16 +42,26 @@ UI 中使用以下表述：
 - 已避开摄像头点位数量。
 - 禁摩摄像头数据是否加载成功。
 
+### 1.4 路网数据真实性决策
+
+当前仓库中的 `spike/fixtures/guangzhou-mini.osm` 是人工生成的 3×3 网格，仅用于验证 Valhalla WASM、`motorcycle` profile、图块加载和摄像头避让流程。它不是广州真实道路数据，使用该 fixture 产生的路线不得以真实道路导航的形式展示或验收。
+
+产品化路线必须使用真实广州 OSM 路网，并由同一份路网数据构建 Valhalla graph tiles。前端只能展示路由引擎返回的真实 graph geometry，不通过前端把直线“吸附”到底图道路来伪造路线。
+
+首选免费数据源为 [Geofabrik 广东省 OSM 下载页](https://download.geofabrik.de/asia/china/guangdong.html) 的 `guangdong-latest.osm.pbf`，下载后裁剪广州范围；需要更小区域时，可使用 [BBBike 自定义区域导出](https://extract.bbbike.org/) 生成 PBF。OpenStreetMap 数据按 [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) 授权，部署时必须保留数据来源、更新时间和署名信息。
+
+V1 仍保持广州范围，不因引入广东下载源而扩大为广东省路由产品。广东文件只是便于获取数据，构建流程需要裁剪出广州目标区域。
+
 ## 2. 技术路线决策
 
 ### 2.1 首选路线：Valhalla WASM
 
 Valhalla 官方路由 API 支持 `motorcycle`，也支持 `exclude_locations` 将坐标附近道路排除。[官方 Route API](https://valhalla.github.io/valhalla/api/route/api-reference/)
 
-但是官方 Valhalla 主要面向原生平台和服务端部署，浏览器 WASM 不是现成的低风险产品化能力。因此必须先做 Spike，验证指定 WASM 构建是否能够：
+但是官方 Valhalla 主要面向原生平台和服务端部署，浏览器 WASM 不是现成的低风险产品化能力。因此先用小型合成 fixture 做 Spike，随后必须使用真实广州 graph 做产品化验证。需要验证指定 WASM 构建是否能够：
 
 1. 在浏览器启动。
-2. 读取真实广州 graph tile。
+2. 读取版本化 graph tile。
 3. 按需加载缺失 tile。
 4. 使用 `motorcycle` 计算路线。
 5. 使用 `exclude_locations` 让路线绕开测试摄像头点位。
@@ -87,7 +97,7 @@ flowchart LR
     TP[Routing Tile Provider]
     MC[内存缓存]
     IDB[IndexedDB tile cache]
-    R2[(Cloudflare R2)]
+    CDN[jsDelivr CDN]
     P[Cloudflare Pages]
     D[restrictions.json / manifest.json]
 
@@ -99,10 +109,10 @@ flowchart LR
     VA --> TP
     TP --> MC
     TP --> IDB
-    TP -->|miss: GET .gph| R2
+    TP -->|miss: GET .gph| CDN
     UI -->|app shell / WASM / manifest| P
     UI -->|摄像头数据| D
-    R2 -.静态 graph tiles.-> TP
+    CDN -.静态 graph tiles.-> TP
 ```
 
 ### 3.1 组件职责
@@ -248,13 +258,13 @@ flowchart LR
 
 ### 7.1 图数据格式
 
-不把整个广州 graph 打成一个浏览器首次下载的大文件。优先将 Valhalla 输出的单个 `.gph` tile 按版本放入 R2：
+不把整个广州 graph 打成一个浏览器首次下载的大文件。优先将 Valhalla 输出的单个 `.gph` tile 按 graphVersion 放入独立公开数据仓库，并通过 jsDelivr 分发：
 
 ```text
 routing/
   guangzhou/
+    manifest.json
     graph-2026-08-25-001/
-      manifest.json
       0/xxx/xxx.gph
       1/xxx/xxx.gph
       2/xxx/xxx.gph
@@ -267,10 +277,22 @@ manifest 至少包含：
   "region": "guangzhou",
   "graphVersion": "graph-2026-08-25-001",
   "tileFormat": "valhalla-gph",
-  "baseUrl": "https://static.example.com/routing/guangzhou/graph-2026-08-25-001",
+  "baseUrl": "https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routing-data@<graph-commit>/routing/guangzhou/graph-2026-08-25-001",
   "generatedAt": "2026-08-25T00:00:00Z"
 }
 ```
+
+### 7.1.1 真实路网数据构建要求
+
+真实广州 graph 的构建输入和产物必须可追溯：
+
+- 记录 OSM PBF 下载地址、下载时间、文件 checksum 和目标裁剪范围。
+- 记录 Valhalla、tile builder 和 WASM 构建版本。
+- `manifest.json` 必须标记真实 OSM 数据来源，不得继续使用 `osmFixture` 字段冒充产品数据。
+- 生成的 graph bounds 必须来自实际 graph 数据，并用于前端范围校验和展示。
+- 将当前合成 graph 保留为 Spike/回归 fixture，与真实广州 graph 使用不同的 `region` 或 `graphVersion`，禁止混用。
+
+真实路网替换完成前，测试页面应明确显示“合成测试路网，仅用于引擎验证”，避免用户把规则网格路线理解为真实道路路线。
 
 ### 7.2 Tile Provider
 
@@ -289,7 +311,7 @@ Memory Cache
   ↓ miss
 IndexedDB(graphVersion + tileId)
   ↓ miss
-HTTP GET R2 .gph
+HTTP GET jsDelivr .gph
   ↓
 写入 IndexedDB 和 Memory Cache
 ```
@@ -335,9 +357,10 @@ npm run dev
 验收内容：
 
 - WASM 可以初始化。
-- 可以加载小规模测试 graph。
+- 可以加载小规模合成测试 graph，并明确标记为测试路网。
 - route 返回 geometry、distance、duration。
 - 页面 Network 面板没有远程 route API。
+- 不把合成 graph 的路线几何作为真实道路路线验收。
 
 失败处理：
 
@@ -365,15 +388,17 @@ Case B：在 Case A 路线上放入测试摄像头点，并传 exclude_locations
 
 产出：
 
-- 广州 OSM 数据构建说明。
+- 真实广州 OSM 数据构建说明，优先使用 Geofabrik 广东 PBF 后裁剪广州范围；小范围验证可使用 BBBike 自定义导出。
 - Valhalla graph tile 目录。
-- R2 上传目录结构。
+- 独立路网数据仓库和 jsDelivr 发布目录结构。
 - manifest。
 - 缺 tile 时的 HTTP 获取。
 
 验收：
 
-- 起点终点在广州范围内可以完成路线。
+- 起点终点在真实广州路网上可以完成路线，路线 geometry 与底图道路基本重合。
+- 使用固定道路样例验证路线不会沿合成网格或任意直线穿越建筑、河流等不可通行区域。
+- manifest 能追溯 OSM 数据来源、时间、checksum、构建版本和实际范围。
 - 首次路线只下载实际访问的 tile。
 - 相同区域第二次路线命中缓存。
 
@@ -429,10 +454,10 @@ Case B：在 Case A 路线上放入测试摄像头点，并传 exclude_locations
 - `manifest.webmanifest`。
 - App Shell Service Worker。
 - Cloudflare Pages 部署配置。
-- R2 静态 graph tile 上传脚本。
-- CORS 和缓存头说明。
+- 独立路网数据仓库和 jsDelivr 发布脚本。
+- 固定 commit URL 和缓存策略说明。
 
-Cloudflare Pages 免费计划单个静态文件有 25 MiB 限制，因此 WASM 或 graph tile 不应盲目放入 Pages；较大的 graph 数据放 R2。[Pages Limits](https://developers.cloudflare.com/pages/platform/limits/)
+Cloudflare Pages 免费计划单个静态文件有 25 MiB 限制；当前 graph tile 最大约 11MB，可以随 Pages 构建发布，但为避免主代码仓库膨胀，正式方案使用独立数据仓库 + jsDelivr。[Pages Limits](https://developers.cloudflare.com/pages/platform/limits/)
 
 ## 9. 推荐目录
 
@@ -478,7 +503,7 @@ tools/
   routing-data/
     README.md
     build-guangzhou.sh
-    upload-r2.sh
+    publish-jsdelivr.mjs
 
 tests/
   routing/
@@ -531,13 +556,13 @@ tests/
 ```text
 代码：GitHub 或其他免费 Git 仓库
 前端：Cloudflare Pages
-graph tile：Cloudflare R2 Standard
+graph tile：独立公开数据仓库 + jsDelivr
 地图：OpenFreeMap 公共实例或自托管 OpenMapTiles
 数据：OpenStreetMap + 自维护摄像头 JSON
 路线计算：浏览器 WASM / JavaScript Worker
 ```
 
-R2 当前 Standard 存储有每月 10 GB、100 万次 Class A、1000 万次 Class B 的免费额度，出网流量免费；小规模 MVP 可按零成本设计，但不能承诺无限流量永久免费。[R2 Pricing](https://developers.cloudflare.com/r2/pricing/)
+jsDelivr 使用 GitHub 公开仓库作为源站，按 commit SHA 固定 graph 文件版本；数据仓库不进入 PeiXiu 主代码仓库，发布流程必须保留 OSM 来源、checksum 和许可证说明。
 
 ## 12. 流程图：技术路线选择
 
@@ -588,7 +613,7 @@ flowchart TD
 [ ] 显示距离和预计时间
 [ ] 显示已避开摄像头数量
 [ ] PWA 可以安装
-[ ] 可以部署到 Cloudflare Pages + R2
+[ ] 可以部署到 Cloudflare Pages + jsDelivr
 [ ] 小规模使用不依赖付费 Routing API
 ```
 

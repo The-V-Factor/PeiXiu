@@ -92,7 +92,7 @@
       <rect class="box3" x="360" y="105" width="225" height="55"/><text class="label" x="472" y="132">Valhalla WASM Adapter</text>
       <rect class="box3" x="360" y="205" width="225" height="55"/><text class="label" x="472" y="232">Tile Provider + Cache</text>
       <rect class="box" x="690" y="60" width="240" height="75"/><text class="label" x="810" y="88">Cloudflare Pages</text><text class="label small" x="810" y="112">App Shell / WASM / manifest</text>
-      <rect class="box" x="690" y="205" width="240" height="75"/><text class="label" x="810" y="233">Cloudflare R2</text><text class="label small" x="810" y="257">广州 .gph graph tiles</text>
+      <rect class="box" x="690" y="205" width="240" height="75"/><text class="label" x="810" y="233">jsDelivr CDN</text><text class="label small" x="810" y="257">公开路网仓库 .gph tiles</text>
       <rect class="box" x="690" y="330" width="240" height="55"/><text class="label" x="810" y="357">IndexedDB</text>
       <path class="arrow" d="M280 262 L360 232"/><path class="arrow" d="M280 262 L360 132"/><path class="arrow" d="M585 132 L690 98"/><path class="arrow" d="M585 232 L690 242"/><path class="arrow" d="M585 232 L690 357"/>
     </svg>
@@ -167,7 +167,7 @@ export type RoutingEngine = {
   ↓ miss
 IndexedDB(graphVersion + tileId)
   ↓ miss
-HTTP GET R2 .gph
+HTTP GET jsDelivr .gph
   ↓
 写入 IndexedDB 和 Memory Cache</code></pre>
   <p>不要把整个广州 graph 做成浏览器首次下载的大文件。使用 graphVersion 隔离新旧数据。Service Worker 第一版只缓存 App Shell、JS/CSS、WASM 和 manifest；graph tile 由专门的 Tile Provider 管理。</p>
@@ -176,11 +176,11 @@ HTTP GET R2 .gph
   <div class="phase"><strong>Phase 0：项目骨架。</strong> Vite + TypeScript、RoutingEngine 接口、/spike 页面、调试输出。</div>
   <div class="phase"><strong>Phase 1：Valhalla WASM Spike。</strong> 只验证浏览器启动、小规模 graph、geometry/distance/duration 和无远程 route API。</div>
   <div class="phase"><strong>Phase 2：motorcycle 与摄像头避让。</strong> 固定起点、终点和测试摄像头点，确认第二次路线实际变化并绕开点附近道路。</div>
-  <div class="phase"><strong>Phase 3：广州 graph 和按需加载。</strong> 构建 OSM graph、上传 R2、实现缺 tile 获取和 manifest。</div>
+  <div class="phase"><strong>Phase 3：广州 graph 和按需加载。</strong> 构建 OSM graph、发布独立数据仓库和 jsDelivr、实现缺 tile 获取和 manifest。</div>
   <div class="phase"><strong>Phase 4：IndexedDB 缓存。</strong> 版本隔离、统计、清除缓存、失败重试。</div>
   <div class="phase"><strong>Phase 5：MapLibre 最小 UI。</strong> 地图、定位、目的地、摄像头 GeoJSON、路线和结果面板。</div>
   <div class="phase"><strong>Phase 6：GPS 与错误处理。</strong> 覆盖拒绝定位、超时、引擎失败、tile 失败、数据失败和无路线。</div>
-  <div class="phase"><strong>Phase 7：PWA 与免费部署。</strong> manifest、Service Worker、Pages、R2、CORS 和缓存头。</div>
+  <div class="phase"><strong>Phase 7：PWA 与免费部署。</strong> manifest、Service Worker、Pages、jsDelivr 和固定版本缓存策略。</div>
 
   <h2>9. 技术路线选择流程</h2>
   <div class="diagram">
@@ -212,13 +212,13 @@ HTTP GET R2 .gph
     <tbody>
       <tr><td>代码</td><td>GitHub 或其他免费 Git 仓库</td></tr>
       <tr><td>前端</td><td>Cloudflare Pages</td></tr>
-      <tr><td>graph tile</td><td>Cloudflare R2 Standard</td></tr>
+      <tr><td>graph tile</td><td>公开路网数据仓库 + jsDelivr</td></tr>
       <tr><td>地图</td><td>OpenFreeMap 公共实例或自托管 OpenMapTiles</td></tr>
       <tr><td>数据</td><td>OpenStreetMap + 自维护摄像头 JSON</td></tr>
       <tr><td>计算</td><td>浏览器 WASM / JavaScript Worker</td></tr>
     </tbody>
   </table>
-  <p>R2 当前 Standard 存储每月包含 10 GB、100 万次 Class A、1000 万次 Class B，出网流量免费；小规模 MVP 可以按零成本设计，但不能承诺无限流量永久免费。参考：<a href="https://developers.cloudflare.com/r2/pricing/">R2 Pricing</a>、<a href="https://developers.cloudflare.com/pages/platform/limits/">Pages Limits</a>。</p>
+  <p>graph tile 不进入 PeiXiu 主代码仓库，使用独立公开数据仓库和 jsDelivr 的 commit URL 固定版本；发布时保留 OSM 来源、checksum、归属和许可证说明。参考：<a href="https://github.com/jsdelivr/jsdelivr/blob/master/README.md">jsDelivr</a>、<a href="https://developers.cloudflare.com/pages/platform/limits/">Pages Limits</a>。</p>
 
   <h2>12. MVP 验收标准</h2>
   <ul>
@@ -230,7 +230,7 @@ HTTP GET R2 .gph
     <li>可以加载和显示广州摄像头 JSON。</li>
     <li>第二次摄像头避让路线实际生效。</li>
     <li>显示最终路线、距离、预计时间和已避开摄像头数量。</li>
-    <li>支持 PWA 安装并部署到 Cloudflare Pages + R2。</li>
+    <li>支持 PWA 安装并部署到 Cloudflare Pages + jsDelivr。</li>
     <li>小规模使用不依赖付费 Routing API。</li>
   </ul>
 

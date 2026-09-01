@@ -2,20 +2,25 @@ import {
   Map as MapLibreMap,
   Marker as MapLibreMarker,
   NavigationControl,
-  type GeoJSONSource,
   type MapMouseEvent,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./main.css";
+import { registerServiceWorker } from "./pwa/register.js";
 import { loadCameraDataset } from "./restrictions/cameras.js";
-import type { CameraAwareRouteResult, CameraDataset } from "./restrictions/types.js";
+import type { CameraAwareRouteResult, CameraDataset, CameraPoint } from "./restrictions/types.js";
 import type { Coordinate } from "./routing/types.js";
+import { routingManifestUrl } from "./routing/config.js";
+import { loadRoutingManifest } from "./routing/tiles/manifest.js";
+import type { RoutingManifest, TileBounds } from "./routing/tiles/types.js";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
 if (!app) {
   throw new Error("Missing application root");
 }
+
+registerServiceWorker();
 
 app.innerHTML = `
   <div class="app-shell">
@@ -31,7 +36,12 @@ app.innerHTML = `
     <main class="workspace">
       <section class="map-panel" aria-label="广州地图">
         <div id="map" class="map"></div>
-        <div class="map-hint">点击地图设置目的地；尚未定位时，第一次点击设置起点。</div>
+        <svg id="scope-overlay" class="scope-overlay" aria-hidden="true"></svg>
+        <div class="scope-legend">
+          <span class="scope-legend-swatch"></span><span>当前 graph 范围</span>
+          <span class="camera-legend-swatch">摄</span><span>已知摄像头</span>
+        </div>
+        <div class="map-hint">点击地图设置目的地；尚未定位时，第一次点击设置起点。蓝色虚线为当前路网范围。</div>
       </section>
 
       <aside class="control-panel">
@@ -80,9 +90,33 @@ app.innerHTML = `
         </div>
 
         <div class="data-status">
+          <span>路网范围</span>
+          <strong id="scope-status">加载中…</strong>
+        </div>
+
+        <div class="data-status">
+          <span>路网性质</span>
+          <strong id="graph-status">加载中…</strong>
+        </div>
+
+        <div class="data-status">
           <span>摄像头数据</span>
           <strong id="camera-status">加载中…</strong>
         </div>
+
+        <details class="camera-editor">
+          <summary>添加测试摄像头</summary>
+          <form id="camera-form" class="camera-form">
+            <label>名称（可选）<input id="camera-name" type="text" placeholder="手动测试点位" /></label>
+            <label>纬度<input id="camera-lat" type="number" step="0.00001" min="-90" max="90" required placeholder="23.12500" /></label>
+            <label>经度<input id="camera-lon" type="number" step="0.00001" min="-180" max="180" required placeholder="113.27000" /></label>
+            <div class="camera-form-actions">
+              <button class="button button-secondary" type="submit">添加到地图</button>
+              <button id="clear-test-cameras" class="button button-quiet" type="button">清除手动点</button>
+            </div>
+          </form>
+          <p class="field-hint">手动点只在当前页面生效，会参与本次路线避让测试，不会修改项目数据。</p>
+        </details>
 
         <p class="disclaimer">路线仅供辅助参考。摄像头点位可能存在延迟、遗漏或变更，请以实际道路标志和交通法规为准。</p>
       </aside>
@@ -92,7 +126,15 @@ app.innerHTML = `
 
 const mapElement = document.querySelector<HTMLDivElement>("#map");
 const statusElement = document.querySelector<HTMLSpanElement>("#status")!;
+const scopeStatusElement = document.querySelector<HTMLElement>("#scope-status")!;
+const graphStatusElement = document.querySelector<HTMLElement>("#graph-status")!;
+const scopeOverlayElement = document.querySelector<SVGSVGElement>("#scope-overlay")!;
 const cameraStatusElement = document.querySelector<HTMLElement>("#camera-status")!;
+const cameraForm = document.querySelector<HTMLFormElement>("#camera-form")!;
+const cameraNameInput = document.querySelector<HTMLInputElement>("#camera-name")!;
+const cameraLatInput = document.querySelector<HTMLInputElement>("#camera-lat")!;
+const cameraLonInput = document.querySelector<HTMLInputElement>("#camera-lon")!;
+const clearTestCamerasButton = document.querySelector<HTMLButtonElement>("#clear-test-cameras")!;
 const startLabel = document.querySelector<HTMLElement>("#start-label")!;
 const endLabel = document.querySelector<HTMLElement>("#end-label")!;
 const distanceElement = document.querySelector<HTMLElement>("#distance")!;
@@ -103,9 +145,10 @@ const routeButton = document.querySelector<HTMLButtonElement>("#route")!;
 const clearButton = document.querySelector<HTMLButtonElement>("#clear")!;
 const avoidCamerasInput = document.querySelector<HTMLInputElement>("#avoid-cameras")!;
 
-if (!mapElement || !statusElement || !cameraStatusElement || !startLabel || !endLabel || !distanceElement || !durationElement || !avoidedElement || !locateButton || !routeButton || !clearButton || !avoidCamerasInput) {
+if (!mapElement || !statusElement || !scopeStatusElement || !graphStatusElement || !scopeOverlayElement || !cameraStatusElement || !cameraForm || !cameraNameInput || !cameraLatInput || !cameraLonInput || !clearTestCamerasButton || !startLabel || !endLabel || !distanceElement || !durationElement || !avoidedElement || !locateButton || !routeButton || !clearButton || !avoidCamerasInput) {
   throw new Error("Missing route planner element");
 }
+const mapContainer = mapElement;
 
 const mapStyle = {
   version: 8 as const,
@@ -121,7 +164,7 @@ const mapStyle = {
 };
 
 const map = new MapLibreMap({
-  container: mapElement,
+  container: mapContainer,
   style: mapStyle,
   center: [113.2644, 23.1291],
   zoom: 12,
@@ -129,8 +172,11 @@ const map = new MapLibreMap({
 });
 map.addControl(new NavigationControl(), "top-right");
 
-const routeData = { type: "FeatureCollection", features: [] as Array<Record<string, unknown>> };
+let scopeBounds: TileBounds[] = [];
+let primaryRouteCoordinates: Array<[number, number]> = [];
+let finalRouteCoordinates: Array<[number, number]> = [];
 let cameraData: CameraDataset | null = null;
+let manualCameraSequence = 0;
 let start: Coordinate | null = null;
 let end: Coordinate | null = null;
 let startMarker: MapLibreMarker | null = null;
@@ -175,27 +221,91 @@ function setCurrentLocation(coordinate: Coordinate) {
 }
 
 function setRouteData(result: CameraAwareRouteResult | null) {
-  routeData.features = [];
+  primaryRouteCoordinates = [];
+  finalRouteCoordinates = [];
   if (result) {
     const primaryRoute = result.primaryRoute ?? result;
-    routeData.features.push({ type: "Feature", properties: { kind: "primary" }, geometry: primaryRoute.geometry });
-    routeData.features.push({ type: "Feature", properties: { kind: "final" }, geometry: result.geometry });
+    primaryRouteCoordinates = primaryRoute.geometry.coordinates;
+    finalRouteCoordinates = result.geometry.coordinates;
   }
-  const source = map.getSource("routes") as GeoJSONSource | undefined;
-  source?.setData(routeData as never);
+  renderRoutingOverlay();
+}
+
+function renderRoutingOverlay() {
+  const width = mapContainer.clientWidth;
+  const height = mapContainer.clientHeight;
+  scopeOverlayElement.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  scopeOverlayElement.setAttribute("width", String(width));
+  scopeOverlayElement.setAttribute("height", String(height));
+  scopeOverlayElement.replaceChildren();
+
+  for (const bounds of scopeBounds) {
+    const coordinates = [
+      [bounds.west, bounds.south],
+      [bounds.east, bounds.south],
+      [bounds.east, bounds.north],
+      [bounds.west, bounds.north],
+    ];
+    const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    polygon.setAttribute("points", coordinates.map(([lon, lat]) => {
+      const point = map.project([lon, lat]);
+      return `${point.x},${point.y}`;
+    }).join(" "));
+    scopeOverlayElement.appendChild(polygon);
+  }
+
+  for (const camera of cameraData?.cameras ?? []) {
+    const point = map.project([camera.lon, camera.lat]);
+    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    group.classList.add("camera-point");
+    group.setAttribute("aria-label", `摄像头：${camera.name}`);
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", String(point.x));
+    circle.setAttribute("cy", String(point.y));
+    circle.setAttribute("r", "13");
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", String(point.x));
+    label.setAttribute("y", String(point.y));
+    label.textContent = "摄";
+    group.append(circle, label);
+    scopeOverlayElement.appendChild(group);
+  }
+
+  for (const [className, coordinates] of [["route-primary", primaryRouteCoordinates], ["route-final", finalRouteCoordinates]] as const) {
+    if (coordinates.length < 2) continue;
+    const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    polyline.classList.add(className);
+    polyline.setAttribute("points", coordinates.map(([lon, lat]) => {
+      const point = map.project([lon, lat]);
+      return `${point.x},${point.y}`;
+    }).join(" "));
+    scopeOverlayElement.appendChild(polyline);
+  }
+}
+
+function setRoutingScope(manifest: RoutingManifest) {
+  const seenBounds = new Set<string>();
+  scopeBounds = manifest.tiles.flatMap(({ bounds }) => {
+    const key = [bounds.west, bounds.south, bounds.east, bounds.north].join(",");
+    if (seenBounds.has(key)) return [];
+    seenBounds.add(key);
+    return [bounds];
+  });
+  const west = Math.min(...manifest.tiles.map(({ bounds }) => bounds.west));
+  const south = Math.min(...manifest.tiles.map(({ bounds }) => bounds.south));
+  const east = Math.max(...manifest.tiles.map(({ bounds }) => bounds.east));
+  const north = Math.max(...manifest.tiles.map(({ bounds }) => bounds.north));
+  scopeStatusElement.textContent = `${west.toFixed(3)}–${east.toFixed(3)}E / ${south.toFixed(3)}–${north.toFixed(3)}N`;
+  const isSynthetic = typeof manifest.source?.osmFixture === "string";
+  graphStatusElement.textContent = isSynthetic ? "合成测试路网（仅 Spike）" : "真实 OSM 路网";
+  graphStatusElement.classList.toggle("status-warning", isSynthetic);
+
+  renderRoutingOverlay();
 }
 
 function setCameraData(dataset: CameraDataset) {
   cameraData = dataset;
-  const source = map.getSource("cameras") as GeoJSONSource | undefined;
-  source?.setData({
-    type: "FeatureCollection",
-    features: dataset.cameras.map((camera) => ({
-      type: "Feature",
-      properties: { id: camera.id, name: camera.name, type: camera.type },
-      geometry: { type: "Point", coordinates: [camera.lon, camera.lat] },
-    })),
-  } as never);
+  renderRoutingOverlay();
   cameraStatusElement.textContent = `${dataset.cameras.length} 个已知点位`;
 }
 
@@ -271,30 +381,11 @@ worker.addEventListener("error", ({ message }) => {
 });
 
 map.on("load", () => {
-  map.addSource("routes", { type: "geojson", data: routeData as never });
-  map.addLayer({
-    id: "route-primary",
-    type: "line",
-    source: "routes",
-    filter: ["==", ["get", "kind"], "primary"],
-    paint: { "line-color": "#64748b", "line-width": 4, "line-dasharray": [2, 2], "line-opacity": 0.75 },
-  });
-  map.addLayer({
-    id: "route-final",
-    type: "line",
-    source: "routes",
-    filter: ["==", ["get", "kind"], "final"],
-    paint: { "line-color": "#2563eb", "line-width": 5, "line-opacity": 0.95 },
-  });
-  map.addSource("cameras", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-  map.addLayer({
-    id: "camera-points",
-    type: "circle",
-    source: "cameras",
-    paint: { "circle-radius": 6, "circle-color": "#e11d48", "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 },
-  });
   if (cameraData) setCameraData(cameraData);
+  renderRoutingOverlay();
 });
+map.on("move", renderRoutingOverlay);
+map.on("resize", renderRoutingOverlay);
 
 map.on("click", (event: MapMouseEvent) => {
   const coordinate = { lat: event.lngLat.lat, lon: event.lngLat.lng };
@@ -329,14 +420,57 @@ routeButton.addEventListener("click", () => {
   setStatus("正在启动本地路线计算…");
   worker.postMessage({
     type: "route",
-    region: "guangzhou-mini",
+    region: "guangzhou",
     input: { start, end, costing: "motorcycle" },
     avoidCameras: avoidCamerasInput.checked,
+    cameras: cameraData?.cameras,
   });
 });
 
-loadCameraDataset("/cameras/guangzhou-mini.json")
+cameraForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const lat = Number(cameraLatInput.value);
+  const lon = Number(cameraLonInput.value);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    setStatus("请输入有效的摄像头纬度和经度。");
+    return;
+  }
+
+  const camera: CameraPoint = {
+    id: `manual-camera-${++manualCameraSequence}`,
+    name: cameraNameInput.value.trim() || `手动测试点位 ${manualCameraSequence}`,
+    lat,
+    lon,
+    type: "motorcycle-camera",
+    description: "当前页面手动测试点位",
+  };
+  const dataset = cameraData ?? {
+    version: 1 as const,
+    region: "guangzhou",
+    updatedAt: new Date().toISOString(),
+    source: "browser-manual-test",
+    cameras: [],
+  };
+  setCameraData({ ...dataset, source: "browser-manual-test", cameras: [...dataset.cameras, camera] });
+  cameraForm.reset();
+  const inScope = scopeBounds.some(({ west, south, east, north }) => lon >= west && lon <= east && lat >= south && lat <= north);
+  setStatus(`已添加${camera.name}${inScope ? "，已标记在测试范围内。" : "，但该点在当前测试路网范围外。"}`);
+});
+
+clearTestCamerasButton.addEventListener("click", () => {
+  if (!cameraData) return;
+  setCameraData({ ...cameraData, cameras: cameraData.cameras.filter((camera) => !camera.id.startsWith("manual-camera-")) });
+  setStatus("已清除手动测试摄像头，保留静态点位。");
+});
+
+loadCameraDataset("/cameras/guangzhou.json")
   .then((dataset) => setCameraData(dataset))
   .catch(() => {
     cameraStatusElement.textContent = "加载失败，未进行避让";
+  });
+
+loadRoutingManifest(routingManifestUrl("guangzhou"))
+  .then((manifest) => setRoutingScope(manifest))
+  .catch(() => {
+    scopeStatusElement.textContent = "加载失败";
   });

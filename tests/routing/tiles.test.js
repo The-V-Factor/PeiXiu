@@ -57,6 +57,11 @@ function createFakeStorage() {
 
 test("validates manifest metadata and tile paths", () => {
   assert.deepEqual(selectTilesForRoute(manifest, input).map((tile) => tile.tileId), ["near"]);
+  assert.deepEqual(selectTilesForRoute(manifest, {
+    ...input,
+    start: { lat: 23.12614, lon: 113.32054 },
+    end: { lat: 23.13, lon: 113.32 },
+  }), []);
   assert.throws(
     () => parseRoutingManifest({ ...manifest, tiles: [{ ...manifest.tiles[0], path: "../escape.gph" }] }),
     /invalid tile/,

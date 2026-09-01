@@ -1,0 +1,70 @@
+# PeiXiu 部署说明
+
+## 边界
+
+- Cloudflare Pages 只提供前端 App Shell、JS/CSS、WASM、图标和 manifest。
+- Valhalla `.gph` tile 发布到独立的公开路网数据仓库，再由 jsDelivr 分发，不由 Service Worker 全量 precache。
+- 当前 `public/routing/guangzhou-mini` 是本地/小规模 fixture；生产 graph 发布前需把 manifest 的 `baseUrl` 指向 jsDelivr 的固定 commit URL。
+- 不部署长期运行的 Routing Server，也不把 `/route` 请求发送到远程服务。
+
+## Pages
+
+仓库根目录的 `wrangler.toml` 固定 Pages 构建目录为 `dist`。具备 Cloudflare 登录权限后执行：
+
+```bash
+npx wrangler login
+npm run build
+npx wrangler pages deploy dist --project-name peixiu
+```
+
+首次使用前确认 Pages 项目名、域名和环境；不要把账号 token 写入仓库。
+
+## jsDelivr graph tile
+
+独立仓库 `The-V-Factor/PeiXiu-routing-data` 的目录与 manifest 保持一致：
+
+```text
+routing/guangzhou/manifest.json
+routing/guangzhou/graph-2026-09-01-001/1/040/973.gph
+routing/guangzhou/graph-2026-09-01-001/2/000/652/053.gph
+```
+
+发布本地目录中的 graph 文件：
+
+```text
+将 public/routing/guangzhou 复制到独立数据仓库的 routing/guangzhou，提交后使用 commit SHA 生成固定 jsDelivr URL。
+```
+
+生产构建时设置 manifest 地址：
+
+```bash
+VITE_ROUTING_MANIFEST_URL=https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routing-data@<manifest-commit>/routing/guangzhou/manifest.json npm run build
+```
+
+manifest 的 `baseUrl` 必须指向同一个数据仓库 commit 下的 graph 目录；`.gph` 使用固定 commit URL，不能覆盖已发布版本。
+
+## 发布前检查
+
+```bash
+npm test
+npm run build
+```
+
+- 浏览器可安装 manifest，并注册 `/sw.js`。
+- Application → Service Workers 显示已激活。
+- Cache Storage 只包含 App Shell；`.gph` 不应出现在 Service Worker cache。
+- Network 中 graph tile 来自 jsDelivr，manifest 的 `graphVersion` 与 tile 路径一致。
+- 真实设备定位使用 HTTPS。
+
+## 远端 Mac 测试
+
+远端 Docker 测试可使用 `deploy/nginx.conf`，确保 manifest 返回 `application/manifest+json`：
+
+```bash
+/usr/local/bin/docker run -d --rm --name peixiu-test -p <PORT>:80 \
+  -v <DIST_DIR>:/usr/share/nginx/html:ro \
+  -v <REPO_DIR>/deploy/nginx.conf:/etc/nginx/nginx.conf:ro \
+  nginx:alpine
+```
+
+测试结束后只删除本次容器，不要影响同机其他服务。
