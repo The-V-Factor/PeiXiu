@@ -65,7 +65,7 @@ const manifest = {
   region: "guangzhou",
   graphVersion,
   tileFormat: "valhalla-gph",
-  baseUrl: `/routing/guangzhou/${graphVersion}`,
+  baseUrl: process.env.ROUTING_BASE_URL || `/routing/guangzhou/${graphVersion}`,
   generatedAt: new Date().toISOString(),
   source: {
     kind: "osm-pbf",

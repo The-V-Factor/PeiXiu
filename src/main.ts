@@ -10,6 +10,7 @@ import { registerServiceWorker } from "./pwa/register.js";
 import { loadCameraDataset } from "./restrictions/cameras.js";
 import type { CameraAwareRouteResult, CameraDataset, CameraPoint } from "./restrictions/types.js";
 import type { Coordinate } from "./routing/types.js";
+import { routingManifestUrl } from "./routing/config.js";
 import { loadRoutingManifest } from "./routing/tiles/manifest.js";
 import type { RoutingManifest, TileBounds } from "./routing/tiles/types.js";
 
@@ -468,7 +469,7 @@ loadCameraDataset("/cameras/guangzhou.json")
     cameraStatusElement.textContent = "加载失败，未进行避让";
   });
 
-loadRoutingManifest("/routing/guangzhou/manifest.json")
+loadRoutingManifest(routingManifestUrl("guangzhou"))
   .then((manifest) => setRoutingScope(manifest))
   .catch(() => {
     scopeStatusElement.textContent = "加载失败";

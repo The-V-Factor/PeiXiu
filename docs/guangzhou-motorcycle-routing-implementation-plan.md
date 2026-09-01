@@ -97,7 +97,7 @@ flowchart LR
     TP[Routing Tile Provider]
     MC[内存缓存]
     IDB[IndexedDB tile cache]
-    R2[(Cloudflare R2)]
+    CDN[jsDelivr CDN]
     P[Cloudflare Pages]
     D[restrictions.json / manifest.json]
 
@@ -109,10 +109,10 @@ flowchart LR
     VA --> TP
     TP --> MC
     TP --> IDB
-    TP -->|miss: GET .gph| R2
+    TP -->|miss: GET .gph| CDN
     UI -->|app shell / WASM / manifest| P
     UI -->|摄像头数据| D
-    R2 -.静态 graph tiles.-> TP
+    CDN -.静态 graph tiles.-> TP
 ```
 
 ### 3.1 组件职责
@@ -258,13 +258,13 @@ flowchart LR
 
 ### 7.1 图数据格式
 
-不把整个广州 graph 打成一个浏览器首次下载的大文件。优先将 Valhalla 输出的单个 `.gph` tile 按版本放入 R2：
+不把整个广州 graph 打成一个浏览器首次下载的大文件。优先将 Valhalla 输出的单个 `.gph` tile 按 graphVersion 放入独立公开数据仓库，并通过 jsDelivr 分发：
 
 ```text
 routing/
   guangzhou/
+    manifest.json
     graph-2026-08-25-001/
-      manifest.json
       0/xxx/xxx.gph
       1/xxx/xxx.gph
       2/xxx/xxx.gph
@@ -277,7 +277,7 @@ manifest 至少包含：
   "region": "guangzhou",
   "graphVersion": "graph-2026-08-25-001",
   "tileFormat": "valhalla-gph",
-  "baseUrl": "https://static.example.com/routing/guangzhou/graph-2026-08-25-001",
+  "baseUrl": "https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routing-data@<graph-commit>/routing/guangzhou/graph-2026-08-25-001",
   "generatedAt": "2026-08-25T00:00:00Z"
 }
 ```
@@ -311,7 +311,7 @@ Memory Cache
   ↓ miss
 IndexedDB(graphVersion + tileId)
   ↓ miss
-HTTP GET R2 .gph
+HTTP GET jsDelivr .gph
   ↓
 写入 IndexedDB 和 Memory Cache
 ```
@@ -390,7 +390,7 @@ Case B：在 Case A 路线上放入测试摄像头点，并传 exclude_locations
 
 - 真实广州 OSM 数据构建说明，优先使用 Geofabrik 广东 PBF 后裁剪广州范围；小范围验证可使用 BBBike 自定义导出。
 - Valhalla graph tile 目录。
-- R2 上传目录结构。
+- 独立路网数据仓库和 jsDelivr 发布目录结构。
 - manifest。
 - 缺 tile 时的 HTTP 获取。
 
@@ -454,10 +454,10 @@ Case B：在 Case A 路线上放入测试摄像头点，并传 exclude_locations
 - `manifest.webmanifest`。
 - App Shell Service Worker。
 - Cloudflare Pages 部署配置。
-- R2 静态 graph tile 上传脚本。
-- CORS 和缓存头说明。
+- 独立路网数据仓库和 jsDelivr 发布脚本。
+- 固定 commit URL 和缓存策略说明。
 
-Cloudflare Pages 免费计划单个静态文件有 25 MiB 限制，因此 WASM 或 graph tile 不应盲目放入 Pages；较大的 graph 数据放 R2。[Pages Limits](https://developers.cloudflare.com/pages/platform/limits/)
+Cloudflare Pages 免费计划单个静态文件有 25 MiB 限制；当前 graph tile 最大约 11MB，可以随 Pages 构建发布，但为避免主代码仓库膨胀，正式方案使用独立数据仓库 + jsDelivr。[Pages Limits](https://developers.cloudflare.com/pages/platform/limits/)
 
 ## 9. 推荐目录
 
@@ -503,7 +503,7 @@ tools/
   routing-data/
     README.md
     build-guangzhou.sh
-    upload-r2.sh
+    publish-jsdelivr.mjs
 
 tests/
   routing/
@@ -556,13 +556,13 @@ tests/
 ```text
 代码：GitHub 或其他免费 Git 仓库
 前端：Cloudflare Pages
-graph tile：Cloudflare R2 Standard
+graph tile：独立公开数据仓库 + jsDelivr
 地图：OpenFreeMap 公共实例或自托管 OpenMapTiles
 数据：OpenStreetMap + 自维护摄像头 JSON
 路线计算：浏览器 WASM / JavaScript Worker
 ```
 
-R2 当前 Standard 存储有每月 10 GB、100 万次 Class A、1000 万次 Class B 的免费额度，出网流量免费；小规模 MVP 可按零成本设计，但不能承诺无限流量永久免费。[R2 Pricing](https://developers.cloudflare.com/r2/pricing/)
+jsDelivr 使用 GitHub 公开仓库作为源站，按 commit SHA 固定 graph 文件版本；数据仓库不进入 PeiXiu 主代码仓库，发布流程必须保留 OSM 来源、checksum 和许可证说明。
 
 ## 12. 流程图：技术路线选择
 
@@ -613,7 +613,7 @@ flowchart TD
 [ ] 显示距离和预计时间
 [ ] 显示已避开摄像头数量
 [ ] PWA 可以安装
-[ ] 可以部署到 Cloudflare Pages + R2
+[ ] 可以部署到 Cloudflare Pages + jsDelivr
 [ ] 小规模使用不依赖付费 Routing API
 ```
 

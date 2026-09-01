@@ -23,7 +23,17 @@ bash scripts/routing-data/build-guangzhou.sh \
 
 参数顺序为：源 PBF、输出根目录、不可变 graph 版本、裁剪范围 west/south/east/north。脚本拒绝覆盖已有 graph 版本；需要重建时使用新版本号。
 
-输出目录可以直接交给 R2 上传脚本，manifest 会记录 PBF checksum、来源 URL、裁剪范围、graph 版本和 tile checksum。
+输出目录可以交给 jsDelivr 发布脚本。脚本会把 graph 复制到独立数据仓库，使用两次提交将 tile commit SHA 固定进 manifest，并可选择推送：
+
+```bash
+node scripts/routing-data/publish-jsdelivr.mjs \
+  public/routing/guangzhou \
+  /path/to/PeiXiu-routing-data \
+  The-V-Factor/PeiXiu-routing-data \
+  --push
+```
+
+脚本会输出最终的远程 manifest URL。主项目构建时将该 URL 设置为 `VITE_ROUTING_MANIFEST_URL`，不需要把 graph 文件提交到主代码仓库。
 
 ## 验收
 

@@ -4,6 +4,7 @@ import { createMotorcycleRoutingEngine } from "./engine.js";
 import { loadCameraDataset } from "../../restrictions/cameras.js";
 import { routeWithCameraAvoidance } from "../../restrictions/avoidance.js";
 import { createManifestTileSourceFactory } from "../tiles/provider.js";
+import { routingManifestUrl } from "../config.js";
 import { toRoutingError } from "../errors.js";
 import type { RouteInput } from "../types.js";
 import type { CameraDataset } from "../../restrictions/types.js";
@@ -17,6 +18,7 @@ type WorkerRequest = {
 };
 
 const tileSourceFactory = createManifestTileSourceFactory({
+  manifestUrlForRegion: (region) => routingManifestUrl(region),
   onProgress: (message) => self.postMessage({ type: "progress", message }),
 });
 const engine = createMotorcycleRoutingEngine({
