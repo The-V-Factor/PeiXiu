@@ -35,7 +35,7 @@ PeiXiu 计划做一个**浏览器本地计算路线**的广州摩托车辅助导
 - 支持地图点选目的地；
 - 在浏览器 Web Worker 中计算路线；
 - 显示路线、距离、预计时间和避开点位数量；
-- 优先使用免费地图数据、静态托管和对象存储。
+- 优先使用免费地图数据、静态托管和公开路网数据分发；当前 graph tile 使用独立数据仓库 + jsDelivr。
 
 ### V1 不做什么
 
@@ -55,7 +55,7 @@ flowchart LR
     D --> E[广州 Graph Tiles]
     B --> F[摄像头 JSON]
     E --> G[内存缓存 / IndexedDB]
-    H[Cloudflare R2] --> E
+    H[独立公开路网仓库 + jsDelivr] --> E
     I[Cloudflare Pages] --> B
 ```
 

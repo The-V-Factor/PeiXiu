@@ -1,5 +1,7 @@
 # 真实广州路网构建
 
+当前正式发布路径是独立公开数据仓库 + jsDelivr；`upload-r2.sh` 仅作为未来切换对象存储时的备选脚本，不属于当前部署方案。
+
 当前仓库里的 `spike/fixtures/guangzhou-mini.osm` 是合成网格，只能用于 WASM Spike。产品化 graph 必须从真实 OSM PBF 构建。
 
 ## 数据来源
