@@ -455,7 +455,7 @@ Case B：在 Case A 路线上放入测试摄像头点，并传 exclude_locations
 - App Shell Service Worker。
 - Cloudflare Pages 部署配置。
 - 独立路网数据仓库和 jsDelivr 发布脚本。
-- 固定 commit URL 和缓存策略说明。
+- 稳定 `@main` manifest 入口、manifest 内固定 graph commit URL 和缓存策略说明。
 
 Cloudflare Pages 免费计划单个静态文件有 25 MiB 限制；当前 graph tile 最大约 11MB，可以随 Pages 构建发布，但为避免主代码仓库膨胀，正式方案使用独立数据仓库 + jsDelivr。[Pages Limits](https://developers.cloudflare.com/pages/platform/limits/)
 
