@@ -6,12 +6,14 @@ import { routeWithCameraAvoidance } from "../../restrictions/avoidance.js";
 import { createManifestTileSourceFactory } from "../tiles/provider.js";
 import { toRoutingError } from "../errors.js";
 import type { RouteInput } from "../types.js";
+import type { CameraDataset } from "../../restrictions/types.js";
 
 type WorkerRequest = {
   type: "route";
   region: string;
   input: RouteInput;
   avoidCameras?: boolean;
+  cameras?: CameraDataset["cameras"];
 };
 
 const tileSourceFactory = createManifestTileSourceFactory({
@@ -41,6 +43,15 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       ? await routeWithCameraAvoidance(event.data.input, {
           route: (input) => engine(input, event.data.region),
           loadCameras: async () => {
+            if (event.data.cameras) {
+              return {
+                version: 1,
+                region: event.data.region,
+                updatedAt: new Date().toISOString(),
+                source: "browser-session",
+                cameras: event.data.cameras,
+              };
+            }
             const dataset = await loadCameraDataset(`/cameras/${event.data.region}.json`);
             if (dataset.region !== event.data.region) {
               throw new Error(`Camera dataset region mismatch: ${dataset.region}`);

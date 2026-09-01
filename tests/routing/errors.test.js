@@ -9,7 +9,9 @@ test("maps routing failures to safe, actionable user messages", () => {
   assert.equal(graphError.userMessage, "地图数据加载失败，请检查网络后重试。");
   assert.doesNotMatch(graphError.userMessage, /secret|tile\.gph|404/);
 
-  assert.equal(toRoutingError(new Error("没有 graph tile 覆盖路线起终点")).code, "outside-region");
+  const outsideError = toRoutingError(new Error("没有 graph tile 覆盖路线起终点"));
+  assert.equal(outsideError.code, "outside-region");
+  assert.equal(outsideError.userMessage, "起点或目的地超出当前测试路网范围（蓝色边界），请重新选点。");
   assert.equal(toRoutingError(new Error("No route could be found")).code, "no-route");
   assert.equal(new RoutingError("wasm-init").retryable, true);
 });

@@ -1,10 +1,10 @@
 # 广州摩托车摄像头避让导航 Web/PWA 实施方案
 
-> 版本：v1.0
+> 版本：v1.1
 >
-> 日期：2026-08-25
+> 日期：2026-08-31
 >
-> 定位：免费、广州范围、浏览器本地路线计算、按已知摄像头点位做简单避让的 MVP。
+> 定位：免费、广州范围、浏览器本地路线计算、按已知摄像头点位做简单避让的 MVP。当前 Valhalla Spike 使用合成测试路网；产品化前必须替换为真实广州 OSM 路网。
 
 ## 1. 目标与边界
 
@@ -42,16 +42,26 @@ UI 中使用以下表述：
 - 已避开摄像头点位数量。
 - 禁摩摄像头数据是否加载成功。
 
+### 1.4 路网数据真实性决策
+
+当前仓库中的 `spike/fixtures/guangzhou-mini.osm` 是人工生成的 3×3 网格，仅用于验证 Valhalla WASM、`motorcycle` profile、图块加载和摄像头避让流程。它不是广州真实道路数据，使用该 fixture 产生的路线不得以真实道路导航的形式展示或验收。
+
+产品化路线必须使用真实广州 OSM 路网，并由同一份路网数据构建 Valhalla graph tiles。前端只能展示路由引擎返回的真实 graph geometry，不通过前端把直线“吸附”到底图道路来伪造路线。
+
+首选免费数据源为 [Geofabrik 广东省 OSM 下载页](https://download.geofabrik.de/asia/china/guangdong.html) 的 `guangdong-latest.osm.pbf`，下载后裁剪广州范围；需要更小区域时，可使用 [BBBike 自定义区域导出](https://extract.bbbike.org/) 生成 PBF。OpenStreetMap 数据按 [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) 授权，部署时必须保留数据来源、更新时间和署名信息。
+
+V1 仍保持广州范围，不因引入广东下载源而扩大为广东省路由产品。广东文件只是便于获取数据，构建流程需要裁剪出广州目标区域。
+
 ## 2. 技术路线决策
 
 ### 2.1 首选路线：Valhalla WASM
 
 Valhalla 官方路由 API 支持 `motorcycle`，也支持 `exclude_locations` 将坐标附近道路排除。[官方 Route API](https://valhalla.github.io/valhalla/api/route/api-reference/)
 
-但是官方 Valhalla 主要面向原生平台和服务端部署，浏览器 WASM 不是现成的低风险产品化能力。因此必须先做 Spike，验证指定 WASM 构建是否能够：
+但是官方 Valhalla 主要面向原生平台和服务端部署，浏览器 WASM 不是现成的低风险产品化能力。因此先用小型合成 fixture 做 Spike，随后必须使用真实广州 graph 做产品化验证。需要验证指定 WASM 构建是否能够：
 
 1. 在浏览器启动。
-2. 读取真实广州 graph tile。
+2. 读取版本化 graph tile。
 3. 按需加载缺失 tile。
 4. 使用 `motorcycle` 计算路线。
 5. 使用 `exclude_locations` 让路线绕开测试摄像头点位。
@@ -272,6 +282,18 @@ manifest 至少包含：
 }
 ```
 
+### 7.1.1 真实路网数据构建要求
+
+真实广州 graph 的构建输入和产物必须可追溯：
+
+- 记录 OSM PBF 下载地址、下载时间、文件 checksum 和目标裁剪范围。
+- 记录 Valhalla、tile builder 和 WASM 构建版本。
+- `manifest.json` 必须标记真实 OSM 数据来源，不得继续使用 `osmFixture` 字段冒充产品数据。
+- 生成的 graph bounds 必须来自实际 graph 数据，并用于前端范围校验和展示。
+- 将当前合成 graph 保留为 Spike/回归 fixture，与真实广州 graph 使用不同的 `region` 或 `graphVersion`，禁止混用。
+
+真实路网替换完成前，测试页面应明确显示“合成测试路网，仅用于引擎验证”，避免用户把规则网格路线理解为真实道路路线。
+
 ### 7.2 Tile Provider
 
 ```ts
@@ -335,9 +357,10 @@ npm run dev
 验收内容：
 
 - WASM 可以初始化。
-- 可以加载小规模测试 graph。
+- 可以加载小规模合成测试 graph，并明确标记为测试路网。
 - route 返回 geometry、distance、duration。
 - 页面 Network 面板没有远程 route API。
+- 不把合成 graph 的路线几何作为真实道路路线验收。
 
 失败处理：
 
@@ -365,7 +388,7 @@ Case B：在 Case A 路线上放入测试摄像头点，并传 exclude_locations
 
 产出：
 
-- 广州 OSM 数据构建说明。
+- 真实广州 OSM 数据构建说明，优先使用 Geofabrik 广东 PBF 后裁剪广州范围；小范围验证可使用 BBBike 自定义导出。
 - Valhalla graph tile 目录。
 - R2 上传目录结构。
 - manifest。
@@ -373,7 +396,9 @@ Case B：在 Case A 路线上放入测试摄像头点，并传 exclude_locations
 
 验收：
 
-- 起点终点在广州范围内可以完成路线。
+- 起点终点在真实广州路网上可以完成路线，路线 geometry 与底图道路基本重合。
+- 使用固定道路样例验证路线不会沿合成网格或任意直线穿越建筑、河流等不可通行区域。
+- manifest 能追溯 OSM 数据来源、时间、checksum、构建版本和实际范围。
 - 首次路线只下载实际访问的 tile。
 - 相同区域第二次路线命中缓存。
 
