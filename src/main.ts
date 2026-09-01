@@ -11,6 +11,7 @@ import { loadCameraDataset } from "./restrictions/cameras.js";
 import type { CameraAwareRouteResult, CameraDataset, CameraPoint } from "./restrictions/types.js";
 import type { Coordinate } from "./routing/types.js";
 import { routingManifestUrl } from "./routing/config.js";
+import { geometryPolygons, loadGeoJson, pointInGeometry, type GeoJsonGeometry } from "./routing/tiles/geometry.js";
 import { loadRoutingManifest } from "./routing/tiles/manifest.js";
 import type { RoutingManifest, TileBounds } from "./routing/tiles/types.js";
 
@@ -38,10 +39,11 @@ app.innerHTML = `
         <div id="map" class="map"></div>
         <svg id="scope-overlay" class="scope-overlay" aria-hidden="true"></svg>
         <div class="scope-legend">
-          <span class="scope-legend-swatch"></span><span>当前 graph 范围</span>
+          <span class="scope-legend-swatch scope-legend-boundary"></span><span>广州行政边界</span>
+          <span class="scope-legend-swatch scope-legend-coverage"></span><span>路网覆盖范围（近似）</span>
           <span class="camera-legend-swatch">摄</span><span>已知摄像头</span>
         </div>
-        <div class="map-hint">点击地图设置目的地；尚未定位时，第一次点击设置起点。蓝色虚线为当前路网范围。</div>
+          <div class="map-hint">点击地图设置目的地；尚未定位时，第一次点击设置起点。蓝色虚线为广州行政边界，绿色半透明区域为路网覆盖范围（近似）。</div>
       </section>
 
       <aside class="control-panel">
@@ -173,6 +175,9 @@ const map = new MapLibreMap({
 map.addControl(new NavigationControl(), "top-right");
 
 let scopeBounds: TileBounds[] = [];
+let routingScopeReady = false;
+let administrativeBoundary: GeoJsonGeometry | null = null;
+let routingCoverage: GeoJsonGeometry | null = null;
 let primaryRouteCoordinates: Array<[number, number]> = [];
 let finalRouteCoordinates: Array<[number, number]> = [];
 let cameraData: CameraDataset | null = null;
@@ -231,6 +236,22 @@ function setRouteData(result: CameraAwareRouteResult | null) {
   renderRoutingOverlay();
 }
 
+function appendGeometry(geometry: GeoJsonGeometry, className: string) {
+  for (const polygonRings of geometryPolygons(geometry)) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.classList.add(className);
+    path.setAttribute("fill-rule", "evenodd");
+    path.setAttribute("d", polygonRings.map((ring) => {
+      const points = ring.map(([lon, lat]) => {
+        const point = map.project([lon, lat]);
+        return `${point.x},${point.y}`;
+      });
+      return `M ${points.join(" L ")} Z`;
+    }).join(" "));
+    scopeOverlayElement.appendChild(path);
+  }
+}
+
 function renderRoutingOverlay() {
   const width = mapContainer.clientWidth;
   const height = mapContainer.clientHeight;
@@ -239,7 +260,10 @@ function renderRoutingOverlay() {
   scopeOverlayElement.setAttribute("height", String(height));
   scopeOverlayElement.replaceChildren();
 
-  for (const bounds of scopeBounds) {
+  if (administrativeBoundary) appendGeometry(administrativeBoundary, "scope-boundary");
+  if (routingCoverage) appendGeometry(routingCoverage, "scope-coverage");
+
+  if (!routingCoverage) for (const bounds of scopeBounds) {
     const coordinates = [
       [bounds.west, bounds.south],
       [bounds.east, bounds.south],
@@ -251,6 +275,7 @@ function renderRoutingOverlay() {
       const point = map.project([lon, lat]);
       return `${point.x},${point.y}`;
     }).join(" "));
+    polygon.classList.add("scope-tile-fallback");
     scopeOverlayElement.appendChild(polygon);
   }
 
@@ -283,24 +308,72 @@ function renderRoutingOverlay() {
   }
 }
 
-function setRoutingScope(manifest: RoutingManifest) {
+function boundsForTiles(manifest: RoutingManifest) {
   const seenBounds = new Set<string>();
-  scopeBounds = manifest.tiles.flatMap(({ bounds }) => {
+  return manifest.tiles.flatMap(({ bounds }) => {
     const key = [bounds.west, bounds.south, bounds.east, bounds.north].join(",");
     if (seenBounds.has(key)) return [];
     seenBounds.add(key);
     return [bounds];
   });
+}
+
+function setRoutingScope(manifest: RoutingManifest) {
+  scopeBounds = boundsForTiles(manifest);
+  routingScopeReady = true;
   const west = Math.min(...manifest.tiles.map(({ bounds }) => bounds.west));
   const south = Math.min(...manifest.tiles.map(({ bounds }) => bounds.south));
   const east = Math.max(...manifest.tiles.map(({ bounds }) => bounds.east));
   const north = Math.max(...manifest.tiles.map(({ bounds }) => bounds.north));
-  scopeStatusElement.textContent = `${west.toFixed(3)}–${east.toFixed(3)}E / ${south.toFixed(3)}–${north.toFixed(3)}N`;
+  scopeStatusElement.textContent = routingCoverage
+    ? "广州路网覆盖范围已加载"
+    : `${west.toFixed(3)}–${east.toFixed(3)}E / ${south.toFixed(3)}–${north.toFixed(3)}N`;
   const isSynthetic = typeof manifest.source?.osmFixture === "string";
   graphStatusElement.textContent = isSynthetic ? "合成测试路网（仅 Spike）" : "真实 OSM 路网";
   graphStatusElement.classList.toggle("status-warning", isSynthetic);
 
   renderRoutingOverlay();
+}
+
+function isInRoutingScope(coordinate: Coordinate) {
+  if (!routingScopeReady) return true;
+  if (routingCoverage) return pointInGeometry(coordinate, routingCoverage);
+  return scopeBounds.some(({ west, south, east, north }) => coordinate.lon >= west && coordinate.lon <= east && coordinate.lat >= south && coordinate.lat <= north);
+}
+
+function resolveScopeUrl(url: string, manifestUrl: string) {
+  return new URL(url, new URL(manifestUrl, window.location.href)).href;
+}
+
+async function loadScopeGeometry(manifest: RoutingManifest, manifestUrl: string) {
+  administrativeBoundary = null;
+  routingCoverage = null;
+
+  const requests = [
+    ["administrative boundary", manifest.boundaryUrl],
+    ["routing coverage", manifest.coverageUrl],
+  ] as const;
+  const results = await Promise.all(requests.map(async ([kind, url]) => {
+    if (!url) return { kind, geometry: null, error: null };
+    try {
+      return { kind, geometry: await loadGeoJson(resolveScopeUrl(url, manifestUrl)), error: null };
+    } catch (error) {
+      return { kind, geometry: null, error };
+    }
+  }));
+
+  for (const result of results) {
+    if (result.kind === "administrative boundary") administrativeBoundary = result.geometry;
+    if (result.kind === "routing coverage") routingCoverage = result.geometry;
+  }
+
+  const geometryErrors = results.filter(({ error }) => error).map(({ kind }) => kind);
+  setRoutingScope(manifest);
+  if (geometryErrors.length > 0) {
+    const fallback = routingCoverage ? "使用已加载路网覆盖范围" : "使用 tile 范围";
+    scopeStatusElement.textContent = `范围几何加载失败，${fallback}（${geometryErrors.join("、")}）`;
+    scopeStatusElement.classList.add("status-warning");
+  }
 }
 
 function setCameraData(dataset: CameraDataset) {
@@ -414,6 +487,10 @@ routeButton.addEventListener("click", () => {
     setStatus("请先设置起点和目的地。");
     return;
   }
+  if (!isInRoutingScope(start) || !isInRoutingScope(end)) {
+    setStatus("起点或目的地在当前路网覆盖范围外，请重新选择地点。");
+    return;
+  }
 
   routing = true;
   routeButton.disabled = true;
@@ -453,7 +530,7 @@ cameraForm.addEventListener("submit", (event) => {
   };
   setCameraData({ ...dataset, source: "browser-manual-test", cameras: [...dataset.cameras, camera] });
   cameraForm.reset();
-  const inScope = scopeBounds.some(({ west, south, east, north }) => lon >= west && lon <= east && lat >= south && lat <= north);
+  const inScope = isInRoutingScope({ lat, lon });
   setStatus(`已添加${camera.name}${inScope ? "，已标记在测试范围内。" : "，但该点在当前测试路网范围外。"}`);
 });
 
@@ -469,8 +546,9 @@ loadCameraDataset("/cameras/guangzhou.json")
     cameraStatusElement.textContent = "加载失败，未进行避让";
   });
 
-loadRoutingManifest(routingManifestUrl("guangzhou"))
-  .then((manifest) => setRoutingScope(manifest))
+const manifestUrl = routingManifestUrl("guangzhou");
+loadRoutingManifest(manifestUrl)
+  .then((manifest) => loadScopeGeometry(manifest, manifestUrl))
   .catch(() => {
     scopeStatusElement.textContent = "加载失败";
   });

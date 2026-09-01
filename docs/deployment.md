@@ -27,6 +27,9 @@ npx wrangler pages deploy dist --project-name peixiu
 routing/guangzhou/manifest.json
 routing/guangzhou/graph-2026-09-01-001/1/040/973.gph
 routing/guangzhou/graph-2026-09-01-001/2/000/652/053.gph
+cameras/guangzhou/manifest.json
+boundaries/guangzhou/guangzhou-admin.geojson
+routing/guangzhou/coverage.geojson
 ```
 
 发布本地目录中的 graph 文件：
@@ -48,6 +51,8 @@ VITE_ROUTING_MANIFEST_URL=https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routin
 ```
 
 manifest 的 `baseUrl` 必须指向同一个数据仓库 commit 下的 graph 目录；`.gph` 使用固定 commit URL，不能覆盖已发布版本。更新 routing data 时只需发布数据仓库的 `main`，不需要修改 PeiXiu 或 Cloudflare 的变量。
+
+广州 routing manifest 可同时提供 `boundaryUrl` 和 `coverageUrl`。前者是行政边界，后者是实际可路由覆盖范围；前端在加载成功时绘制 GeoJSON，旧 manifest 缺少这两个字段时才回退到 tile bounds。
 
 ## 发布前检查
 

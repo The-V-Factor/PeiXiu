@@ -223,26 +223,35 @@ export function createMotorcycleRoutingEngine(options: {
   onProgress?: (message: string) => void;
 }) {
   let module: ValhallaModule | null = null;
+  let moduleLoadPromise: Promise<ValhallaModule> | null = null;
   let router: InstanceType<ValhallaModule["ValhallaRouter"]> | null = null;
   const mountedTiles = new Set<string>();
 
   return async (input: RouteInput, region: string): Promise<RouteResult> => {
-    if (!module) {
-      try {
-        module = await options.initModule();
-      } catch (error) {
-        throw new RoutingError("wasm-init", error);
-      }
-    }
-    mkdirp(module.FS, "/valhalla_tiles");
+    const modulePromise = module ?? (moduleLoadPromise ??= options.initModule().then((initialized) => {
+      module = initialized;
+      return initialized;
+    }).catch((error) => {
+      moduleLoadPromise = null;
+      throw error;
+    }));
 
-    options.onProgress?.("加载 graph tile…");
-    const source = await options.tileSourceFactory(region, input);
+    options.onProgress?.("准备本地路线引擎并加载 graph tile…");
+    const sourcePromise = options.tileSourceFactory(region, input);
+    let initializedModule: ValhallaModule;
+    try {
+      initializedModule = await modulePromise;
+    } catch (error) {
+      throw new RoutingError("wasm-init", error);
+    }
+    const source = await sourcePromise;
     if (!source) throw new Error(`未找到 graph tile: ${region}`);
+
+    mkdirp(initializedModule.FS, "/valhalla_tiles");
     const tileCountBefore = mountedTiles.size;
-    mountTileSource(module.FS, source, mountedTiles);
+    mountTileSource(initializedModule.FS, source, mountedTiles);
     if (!router || mountedTiles.size > tileCountBefore) {
-      router = new module.ValhallaRouter(JSON.stringify(valhallaConfig));
+      router = new initializedModule.ValhallaRouter(JSON.stringify(valhallaConfig));
     }
 
     options.onProgress?.("计算 motorcycle 路线…");

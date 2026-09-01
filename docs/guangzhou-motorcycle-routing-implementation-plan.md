@@ -284,6 +284,17 @@ manifest 至少包含：
 }
 ```
 
+下一版本的广州 manifest 可以额外提供两个静态 GeoJSON 引用：
+
+```json
+{
+  "boundaryUrl": "https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routing-data@<data-commit>/boundaries/guangzhou/guangzhou-admin.geojson",
+  "coverageUrl": "https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routing-data@<data-commit>/routing/guangzhou/coverage.geojson"
+}
+```
+
+`boundaryUrl` 表示广州行政区划边界，`coverageUrl` 表示实际可路由 graph 覆盖范围。两者都使用 WGS84 的 Polygon 或 MultiPolygon GeoJSON，并记录来源、许可、更新时间和版本。前端优先绘制这两个几何；旧 manifest 没有引用时，继续使用 tile bounds 作为兼容回退，不能将回退矩形当作真实行政边界。
+
 ### 7.1.1 真实路网数据构建要求
 
 真实广州 graph 的构建输入和产物必须可追溯：
@@ -292,6 +303,8 @@ manifest 至少包含：
 - 记录 Valhalla、tile builder 和 WASM 构建版本。
 - `manifest.json` 必须标记真实 OSM 数据来源，不得继续使用 `osmFixture` 字段冒充产品数据。
 - 生成的 graph bounds 必须来自实际 graph 数据，并用于前端范围校验和展示。
+- manifest 中每个 tile 的 bounds 必须使用 Valhalla 层级的真实地理网格范围，不能全部复用广州总裁剪框；否则按起终点筛选会退化为下载全部 tile。
+- 行政边界与路网覆盖范围必须分开发布；行政边界用于表达广州产品范围，coverage 用于表达真实可计算范围。
 - 将当前合成 graph 保留为 Spike/回归 fixture，与真实广州 graph 使用不同的 `region` 或 `graphVersion`，禁止混用。
 
 合成 fixture 仍须明确显示为“合成测试路网，仅用于引擎验证”；正式页面显示真实 OSM 路网，并通过稳定 manifest 入口加载当前 graph 版本。
@@ -321,6 +334,8 @@ HTTP GET jsDelivr .gph
 必须避免新旧 graph 混用。manifest 更新后，客户端使用新的 `graphVersion` 命名空间；旧缓存可以延迟清理。
 
 当前实现的缓存键为 `region/graphVersion/tileId`，并提供 `clear({ region, graphVersion })`、统计读取和 manifest 刷新入口。IndexedDB 不可用时只跳过持久化层，仍保留内存缓存和 HTTP 路径。
+
+首次规划时只下载覆盖起终点的 tile；多个命中的 tile 并行请求，同时启动 Valhalla WASM 初始化，避免初始化和网络下载串行叠加。下载完成后写入内存和 IndexedDB，后续规划优先复用缓存。
 
 ### 7.3 PWA 缓存边界
 

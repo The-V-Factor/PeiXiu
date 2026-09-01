@@ -66,6 +66,11 @@ test("validates manifest metadata and tile paths", () => {
     () => parseRoutingManifest({ ...manifest, tiles: [{ ...manifest.tiles[0], path: "../escape.gph" }] }),
     /invalid tile/,
   );
+  assert.equal(parseRoutingManifest({ ...manifest, coverageUrl: "coverage.geojson" }).coverageUrl, "coverage.geojson");
+  assert.throws(
+    () => parseRoutingManifest({ ...manifest, boundaryUrl: "../boundary.geojson" }),
+    /boundary URL is invalid/,
+  );
 });
 
 test("downloads only selected tiles and reuses them by graph version", async () => {
@@ -97,6 +102,41 @@ test("downloads only selected tiles and reuses them by graph version", async () 
     "/routing/guangzhou-mini/graph-test-001/1/near.gph",
     "/routing/guangzhou-mini/graph-test-001/1/near.gph",
   ]);
+});
+
+test("downloads selected tiles concurrently", async () => {
+  const multiTileManifest = parseRoutingManifest({
+    ...manifest,
+    tiles: [
+      { ...manifest.tiles[0], tileId: "near-a", path: "1/near-a.gph" },
+      { ...manifest.tiles[0], tileId: "near-b", path: "1/near-b.gph" },
+    ],
+  });
+  const calls = [];
+  let releaseFirstTile;
+  const factory = createManifestTileSourceFactory({
+    fetchImpl: async (url) => {
+      calls.push(url);
+      if (url.endsWith("manifest.json")) return okJson(multiTileManifest);
+      if (url.endsWith("near-a.gph")) {
+        return new Promise((resolve) => {
+          releaseFirstTile = () => resolve(okBytes(new Uint8Array([1]).buffer));
+        });
+      }
+      return okBytes(new Uint8Array([2]).buffer);
+    },
+  });
+
+  const sourcePromise = factory("guangzhou-mini", input);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(calls, [
+    "/routing/guangzhou-mini/manifest.json",
+    "/routing/guangzhou-mini/graph-test-001/1/near-a.gph",
+    "/routing/guangzhou-mini/graph-test-001/1/near-b.gph",
+  ]);
+  releaseFirstTile();
+  const source = await sourcePromise;
+  assert.equal(source.entries.length, 2);
 });
 
 test("reports missing graph tiles with HTTP status and path", async () => {
