@@ -36,6 +36,28 @@ async function listGraphFiles(directory) {
   return files;
 }
 
+const tileLayouts = new Map([
+  [0, { size: 4, width: 90 }],
+  [1, { size: 1, width: 360 }],
+  [2, { size: 0.25, width: 1440 }],
+]);
+
+function boundsForTile(tileId) {
+  const parts = tileId.split("/");
+  const level = Number(parts[0]);
+  const layout = tileLayouts.get(level);
+  if (!layout || parts.length < 2 || parts.some((part) => !/^\d+$/.test(part))) {
+    throw new Error(`unsupported Valhalla tile id: ${tileId}`);
+  }
+  const tileIndex = Number(parts.slice(1).join(""));
+  if (!Number.isSafeInteger(tileIndex)) throw new Error(`invalid Valhalla tile id: ${tileId}`);
+  const row = Math.floor(tileIndex / layout.width);
+  const column = tileIndex % layout.width;
+  const west = column * layout.size - 180;
+  const south = row * layout.size - 90;
+  return { west, south, east: west + layout.size, north: south + layout.size };
+}
+
 function sha256(path) {
   return new Promise((resolve, reject) => {
     const hash = createHash("sha256");
@@ -55,7 +77,7 @@ const tiles = await Promise.all(graphFiles.map(async (path) => {
   return {
     tileId: relativePath.slice(0, -4),
     path: relativePath,
-    bounds,
+    bounds: boundsForTile(relativePath.slice(0, -4)),
     sizeBytes: fileStats.size,
     sha256: await sha256(path),
   };
@@ -67,6 +89,8 @@ const manifest = {
   tileFormat: "valhalla-gph",
   baseUrl: process.env.ROUTING_BASE_URL || `/routing/guangzhou/${graphVersion}`,
   generatedAt: new Date().toISOString(),
+  ...(process.env.ROUTING_BOUNDARY_URL ? { boundaryUrl: process.env.ROUTING_BOUNDARY_URL } : {}),
+  ...(process.env.ROUTING_COVERAGE_URL ? { coverageUrl: process.env.ROUTING_COVERAGE_URL } : {}),
   source: {
     kind: "osm-pbf",
     url: process.env.OSM_PBF_URL || "https://download.geofabrik.de/asia/china/guangdong-latest.osm.pbf",

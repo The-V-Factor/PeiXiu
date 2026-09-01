@@ -111,11 +111,10 @@ export function createManifestTileSourceFactory(options = {}) {
       throw new Error(`没有 graph tile 覆盖路线起终点：${region}`);
     }
 
-    const tiles = [];
-    for (const tile of selectedTiles) {
-      const bytes = await provider.getTile(manifest, tile);
-      tiles.push({ path: tile.path, bytes });
-    }
+    const tiles = await Promise.all(selectedTiles.map(async (tile) => ({
+      path: tile.path,
+      bytes: await provider.getTile(manifest, tile),
+    })));
 
     return createGphTileSource(tiles);
   };

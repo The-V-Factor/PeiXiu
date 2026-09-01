@@ -23,6 +23,8 @@ export type RoutingManifest = {
   baseUrl: string;
   generatedAt: string;
   tiles: RoutingManifestTile[];
+  boundaryUrl?: string;
+  coverageUrl?: string;
   source?: Record<string, unknown>;
 };
 

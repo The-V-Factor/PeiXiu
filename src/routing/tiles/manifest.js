@@ -20,6 +20,23 @@ function isSafeRelativePath(value) {
   return isNonEmptyString(value) && !value.startsWith("/") && !value.split("/").includes("..");
 }
 
+function isDataUrl(value) {
+  if (!isNonEmptyString(value)) return false;
+  if (!value.includes("://")) return !value.split("/").includes("..");
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function optionalDataUrl(value, fieldName) {
+  if (value === undefined) return {};
+  if (!isDataUrl(value)) throw new TypeError(`Routing manifest ${fieldName.replace("Url", " URL")} is invalid`);
+  return { [fieldName]: value };
+}
+
 export function parseRoutingManifest(value) {
   if (!value || typeof value !== "object") {
     throw new TypeError("Routing manifest must be an object");
@@ -58,12 +75,14 @@ export function parseRoutingManifest(value) {
     baseUrl: value.baseUrl,
     generatedAt: value.generatedAt,
     tiles,
+    ...optionalDataUrl(value.boundaryUrl, "boundaryUrl"),
+    ...optionalDataUrl(value.coverageUrl, "coverageUrl"),
     ...(value.source === undefined ? {} : { source: value.source }),
   };
 }
 
 export async function loadRoutingManifest(url, fetchImpl = fetch) {
-  const response = await fetchImpl(url);
+  const response = await fetchImpl(url, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Routing manifest request failed: HTTP ${response.status}`);
   }

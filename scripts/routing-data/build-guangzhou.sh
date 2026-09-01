@@ -13,6 +13,7 @@ west="$4"
 south="$5"
 east="$6"
 north="$7"
+polygon_file="${OSM_POLYGON_FILE:-}"
 
 osmium_image="${OSMIUM_IMAGE:-stefda/osmium-tool}"
 valhalla_image="${VALHALLA_IMAGE:-ghcr.io/gis-ops/docker-valhalla/valhalla:latest}"
@@ -23,6 +24,13 @@ if [ ! -f "$source_pbf" ]; then
 fi
 
 source_pbf="$(cd "$(dirname "$source_pbf")" && pwd)/$(basename "$source_pbf")"
+if [ -n "$polygon_file" ]; then
+  if [ ! -f "$polygon_file" ]; then
+    echo "polygon file does not exist: $polygon_file" >&2
+    exit 66
+  fi
+  polygon_file="$(cd "$(dirname "$polygon_file")" && pwd)/$(basename "$polygon_file")"
+fi
 routing_root="$(mkdir -p "$routing_root" && cd "$routing_root" && pwd)"
 target_directory="$routing_root/$graph_version"
 
@@ -39,13 +47,19 @@ trap cleanup EXIT
 
 source_directory="$(dirname "$source_pbf")"
 source_filename="$(basename "$source_pbf")"
+polygon_mount=()
+extract_arguments=(-b "$west,$south,$east,$north")
+if [ -n "$polygon_file" ]; then
+  polygon_mount=(-v "$(dirname "$polygon_file"):/boundary:ro")
+  extract_arguments=(-p "/boundary/$(basename "$polygon_file")")
+fi
 
 docker run --rm \
   -v "$source_directory:/source:ro" \
+  "${polygon_mount[@]}" \
   -v "$work_directory:/data" \
   --entrypoint osmium \
-  "$osmium_image" extract \
-  -b "$west,$south,$east,$north" \
+  "$osmium_image" extract "${extract_arguments[@]}" \
   --strategy complete_ways \
   "/source/$source_filename" \
   -o /data/guangzhou.osm.pbf \

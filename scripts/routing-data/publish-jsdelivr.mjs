@@ -28,6 +28,9 @@ const graphVersion = sourceManifest.graphVersion;
 const sourceGraphDirectory = join(sourceDirectory, graphVersion);
 const targetDirectory = join(dataRepository, "routing", "guangzhou");
 const targetGraphDirectory = join(targetDirectory, graphVersion);
+const sourceCoveragePath = join(sourceDirectory, "coverage.geojson");
+const sourceBoundaryPath = join(sourceDirectory, "guangzhou-admin.geojson");
+const targetBoundaryDirectory = join(dataRepository, "boundaries", "guangzhou");
 
 try {
   await stat(targetGraphDirectory);
@@ -38,6 +41,11 @@ try {
 
 await mkdir(targetDirectory, { recursive: true });
 await cp(sourceGraphDirectory, targetGraphDirectory, { recursive: true, errorOnExist: true });
+if (sourceManifest.coverageUrl) await cp(sourceCoveragePath, join(targetDirectory, "coverage.geojson"));
+if (sourceManifest.boundaryUrl) {
+  await mkdir(targetBoundaryDirectory, { recursive: true });
+  await cp(sourceBoundaryPath, join(targetBoundaryDirectory, "guangzhou-admin.geojson"));
+}
 
 const graphCommitMarker = "GRAPH_COMMIT_SHA";
 const manifestPath = join(targetDirectory, "manifest.json");
@@ -45,12 +53,18 @@ const writeManifest = async (commitSha) => {
   const manifest = {
     ...sourceManifest,
     baseUrl: `https://cdn.jsdelivr.net/gh/${repositorySlug}@${commitSha}/routing/guangzhou/${graphVersion}`,
+    ...(sourceManifest.boundaryUrl ? {
+      boundaryUrl: `https://cdn.jsdelivr.net/gh/${repositorySlug}@${commitSha}/boundaries/guangzhou/guangzhou-admin.geojson`,
+    } : {}),
+    ...(sourceManifest.coverageUrl ? {
+      coverageUrl: `https://cdn.jsdelivr.net/gh/${repositorySlug}@${commitSha}/routing/guangzhou/coverage.geojson`,
+    } : {}),
   };
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 };
 
 await writeManifest(graphCommitMarker);
-runGit("add", "routing/guangzhou");
+runGit("add", "routing/guangzhou", "boundaries/guangzhou");
 runGit("commit", "-m", `codex(data): publish ${graphVersion} graph`);
 const graphCommit = runGit("rev-parse", "HEAD");
 

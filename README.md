@@ -111,6 +111,7 @@ flowchart TD
 
 ## 文档
 
+- [下一版本 PRD：数据外置与路线规划体验优化](docs/prd/2026-09-01-v0.1.0-data-and-routing-ux.md)
 - [实施方案（Markdown）](docs/guangzhou-motorcycle-routing-implementation-plan.md)
 - [实施方案（HTML）](docs/guangzhou-motorcycle-routing-implementation-plan.html)
 
