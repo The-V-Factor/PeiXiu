@@ -26,14 +26,20 @@ h2 { margin-bottom: 0; font-size: 1.35rem; letter-spacing: -0.03em; }
 .scope-overlay .scope-coverage { fill: #0f766e18; stroke: none; }
 .scope-overlay .scope-tile-fallback { fill: none; stroke: #2563eb; stroke-width: 4; stroke-dasharray: 9 6; }
 .scope-overlay .camera-point circle { fill: #f97316; stroke: #fff; stroke-width: 3; vector-effect: non-scaling-stroke; }
+.scope-overlay .camera-point .camera-accuracy { fill: #f9731620; stroke: #f9731688; stroke-width: 2; stroke-dasharray: 5 4; }
+.scope-overlay .camera-point-approximate > circle:not(.camera-accuracy) { fill: #ea580c; }
+.scope-overlay .camera-point-test circle { fill: #7c3aed; }
 .scope-overlay .camera-point text { fill: #fff; font-size: 10px; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
 .scope-overlay polyline { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .scope-overlay .route-primary { stroke: #64748b; stroke-width: 6; stroke-dasharray: 10 8; opacity: 0.8; }
 .scope-overlay .route-final { stroke: #2563eb; stroke-width: 7; opacity: 0.98; }
+.scope-overlay .route-fallback { stroke: #dc2626; stroke-width: 8; opacity: 0.98; }
 .scope-legend { position: absolute; z-index: 2; top: 20px; left: 20px; display: flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid #ffffffaa; border-radius: 10px; color: #1e40af; background: #ffffffdd; box-shadow: 0 6px 18px #1720331c; font-size: 0.78rem; font-weight: 700; }
 .scope-legend-swatch { width: 24px; border-top: 3px dashed #2563eb; }
 .scope-legend-coverage { margin-left: 5px; height: 12px; border: 1px solid #0f766e66; background: #0f766e2e; }
+.route-fallback-legend-swatch { width: 24px; border-top: 4px solid #dc2626; }
 .camera-legend-swatch { display: grid; width: 20px; height: 20px; margin-left: 5px; place-items: center; border-radius: 50%; color: #fff; background: #f97316; font-size: 0.68rem; }
+.camera-test-legend-swatch { background: #7c3aed; }
 .map-hint { position: absolute; z-index: 2; left: 20px; bottom: 20px; max-width: calc(100% - 40px); padding: 9px 13px; border: 1px solid #ffffffaa; border-radius: 10px; color: #334155; background: #ffffffdd; box-shadow: 0 6px 18px #1720331c; font-size: 0.82rem; }
 .control-panel { display: flex; flex-direction: column; gap: 22px; padding: 32px 28px; }
 .panel-heading { padding-bottom: 4px; border-bottom: 1px solid #e2e8f0; }
@@ -70,6 +76,12 @@ h2 { margin-bottom: 0; font-size: 1.35rem; letter-spacing: -0.03em; }
 .camera-form input { width: 100%; min-height: 36px; padding: 6px 9px; border: 1px solid #cbd5e1; border-radius: 8px; color: #1e293b; background: #fff; font-size: 0.84rem; }
 .camera-form-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 3px; }
 .camera-form-actions .button { min-height: 38px; padding: 7px 8px; font-size: 0.78rem; }
+.button-picking { color: #fff; background: #7c3aed; }
+.test-camera-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.test-camera-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px; border-radius: 8px; background: #f5f3ff; color: #5b21b6; font-size: 0.74rem; }
+.test-camera-list li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.test-camera-empty { color: #64748b !important; background: #f8fafc !important; }
+.test-camera-remove { flex: 0 0 auto; padding: 2px 5px; border: 0; border-radius: 5px; color: #6d28d9; background: #ede9fe; cursor: pointer; font-size: 0.72rem; }
 .field-hint { margin: 10px 0 0; color: #64748b; font-size: 0.72rem; line-height: 1.45; }
 .disclaimer { margin: auto 0 0; color: #64748b; font-size: 0.75rem; }
 .map-marker { display: grid; width: 30px; height: 30px; place-items: center; border: 3px solid #fff; border-radius: 50% 50% 50% 0; box-shadow: 0 3px 10px #17203344; color: #fff; font-size: 0.72rem; font-weight: 800; transform: rotate(-45deg); }

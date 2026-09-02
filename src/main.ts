@@ -2,12 +2,16 @@ import {
   Map as MapLibreMap,
   Marker as MapLibreMarker,
   NavigationControl,
+  setWorkerUrl,
   type MapMouseEvent,
 } from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./main.css";
 import { registerServiceWorker } from "./pwa/register.js";
-import { loadCameraDataset } from "./restrictions/cameras.js";
+import { loadCameraDatasetFromManifest } from "./restrictions/cameras.js";
+import { cameraManifestUrl } from "./restrictions/config.js";
+import { loadLocalTestCameras, saveLocalTestCameras } from "./restrictions/local-test-cameras.js";
 import type { CameraAwareRouteResult, CameraDataset, CameraPoint } from "./restrictions/types.js";
 import type { Coordinate } from "./routing/types.js";
 import { routingManifestUrl } from "./routing/config.js";
@@ -22,6 +26,7 @@ if (!app) {
 }
 
 registerServiceWorker();
+setWorkerUrl(maplibreWorkerUrl);
 
 app.innerHTML = `
   <div class="app-shell">
@@ -42,6 +47,8 @@ app.innerHTML = `
           <span class="scope-legend-swatch scope-legend-boundary"></span><span>广州行政边界</span>
           <span class="scope-legend-swatch scope-legend-coverage"></span><span>路网覆盖范围（近似）</span>
           <span class="camera-legend-swatch">摄</span><span>已知摄像头</span>
+          <span class="camera-legend-swatch camera-test-legend-swatch">测</span><span>测试点</span>
+          <span class="route-fallback-legend-swatch"></span><span>无绕行路线</span>
         </div>
           <div class="map-hint">点击地图设置目的地；尚未定位时，第一次点击设置起点。蓝色虚线为广州行政边界，绿色半透明区域为路网覆盖范围（近似）。</div>
       </section>
@@ -107,20 +114,16 @@ app.innerHTML = `
         </div>
 
         <details class="camera-editor">
-          <summary>添加测试摄像头</summary>
-          <form id="camera-form" class="camera-form">
-            <label>名称（可选）<input id="camera-name" type="text" placeholder="手动测试点位" /></label>
-            <label>纬度<input id="camera-lat" type="number" step="0.00001" min="-90" max="90" required placeholder="23.12500" /></label>
-            <label>经度<input id="camera-lon" type="number" step="0.00001" min="-180" max="180" required placeholder="113.27000" /></label>
-            <div class="camera-form-actions">
-              <button class="button button-secondary" type="submit">添加到地图</button>
-              <button id="clear-test-cameras" class="button button-quiet" type="button">清除手动点</button>
-            </div>
-          </form>
-          <p class="field-hint">手动点只在当前页面生效，会参与本次路线避让测试，不会修改项目数据。</p>
+          <summary>地图添加测试摄像头</summary>
+          <div class="camera-form">
+            <button id="camera-pick-toggle" class="button button-secondary" type="button">开始地图选点</button>
+            <ol id="test-camera-list" class="test-camera-list"></ol>
+            <button id="clear-test-cameras" class="button button-quiet" type="button">清除全部测试点</button>
+          </div>
+          <p class="field-hint">开启后点击地图即可连续添加测试点；测试点仅保存在本浏览器，不会修改正式数据。</p>
         </details>
 
-        <p class="disclaimer">路线仅供辅助参考。摄像头点位可能存在延迟、遗漏或变更，请以实际道路标志和交通法规为准。</p>
+        <p class="disclaimer">摄像头点位资料由爱好者整理维护，仅供辅助参考，可能存在遗漏、延迟或误差。路线结果不构成道路通行资格或合法性判断，请以现场交通标志、道路标线和现行交通法规为准。</p>
       </aside>
     </main>
   </div>
@@ -132,10 +135,8 @@ const scopeStatusElement = document.querySelector<HTMLElement>("#scope-status")!
 const graphStatusElement = document.querySelector<HTMLElement>("#graph-status")!;
 const scopeOverlayElement = document.querySelector<SVGSVGElement>("#scope-overlay")!;
 const cameraStatusElement = document.querySelector<HTMLElement>("#camera-status")!;
-const cameraForm = document.querySelector<HTMLFormElement>("#camera-form")!;
-const cameraNameInput = document.querySelector<HTMLInputElement>("#camera-name")!;
-const cameraLatInput = document.querySelector<HTMLInputElement>("#camera-lat")!;
-const cameraLonInput = document.querySelector<HTMLInputElement>("#camera-lon")!;
+const cameraPickToggle = document.querySelector<HTMLButtonElement>("#camera-pick-toggle")!;
+const testCameraList = document.querySelector<HTMLOListElement>("#test-camera-list")!;
 const clearTestCamerasButton = document.querySelector<HTMLButtonElement>("#clear-test-cameras")!;
 const startLabel = document.querySelector<HTMLElement>("#start-label")!;
 const endLabel = document.querySelector<HTMLElement>("#end-label")!;
@@ -147,7 +148,7 @@ const routeButton = document.querySelector<HTMLButtonElement>("#route")!;
 const clearButton = document.querySelector<HTMLButtonElement>("#clear")!;
 const avoidCamerasInput = document.querySelector<HTMLInputElement>("#avoid-cameras")!;
 
-if (!mapElement || !statusElement || !scopeStatusElement || !graphStatusElement || !scopeOverlayElement || !cameraStatusElement || !cameraForm || !cameraNameInput || !cameraLatInput || !cameraLonInput || !clearTestCamerasButton || !startLabel || !endLabel || !distanceElement || !durationElement || !avoidedElement || !locateButton || !routeButton || !clearButton || !avoidCamerasInput) {
+if (!mapElement || !statusElement || !scopeStatusElement || !graphStatusElement || !scopeOverlayElement || !cameraStatusElement || !cameraPickToggle || !testCameraList || !clearTestCamerasButton || !startLabel || !endLabel || !distanceElement || !durationElement || !avoidedElement || !locateButton || !routeButton || !clearButton || !avoidCamerasInput) {
   throw new Error("Missing route planner element");
 }
 const mapContainer = mapElement;
@@ -180,8 +181,23 @@ let administrativeBoundary: GeoJsonGeometry | null = null;
 let routingCoverage: GeoJsonGeometry | null = null;
 let primaryRouteCoordinates: Array<[number, number]> = [];
 let finalRouteCoordinates: Array<[number, number]> = [];
+let finalRouteClassName = "route-final";
 let cameraData: CameraDataset | null = null;
-let manualCameraSequence = 0;
+function getLocalStorage() {
+  try {
+    return window.localStorage;
+  } catch (_error) {
+    return undefined;
+  }
+}
+
+const localStorage = getLocalStorage();
+let testCameras: CameraPoint[] = loadLocalTestCameras(localStorage);
+let manualCameraSequence = testCameras.reduce((max, camera) => {
+  const sequence = Number(camera.id.replace("manual-camera-", ""));
+  return Number.isFinite(sequence) ? Math.max(max, sequence) : max;
+}, 0);
+let cameraPickMode = false;
 let start: Coordinate | null = null;
 let end: Coordinate | null = null;
 let startMarker: MapLibreMarker | null = null;
@@ -228,12 +244,21 @@ function setCurrentLocation(coordinate: Coordinate) {
 function setRouteData(result: CameraAwareRouteResult | null) {
   primaryRouteCoordinates = [];
   finalRouteCoordinates = [];
+  finalRouteClassName = "route-final";
   if (result) {
     const primaryRoute = result.primaryRoute ?? result;
     primaryRouteCoordinates = primaryRoute.geometry.coordinates;
     finalRouteCoordinates = result.geometry.coordinates;
+    if (result.cameraAvoidanceStatus === "failed") finalRouteClassName = "route-fallback";
   }
   renderRoutingOverlay();
+}
+
+function allCameras() {
+  return [
+    ...(cameraData?.cameras ?? []).map((camera) => ({ camera, test: false })),
+    ...testCameras.map((camera) => ({ camera, test: true })),
+  ];
 }
 
 function appendGeometry(geometry: GeoJsonGeometry, className: string) {
@@ -279,11 +304,25 @@ function renderRoutingOverlay() {
     scopeOverlayElement.appendChild(polygon);
   }
 
-  for (const camera of cameraData?.cameras ?? []) {
+  for (const { camera, test } of allCameras()) {
     const point = map.project([camera.lon, camera.lat]);
     const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    group.classList.add("camera-point");
-    group.setAttribute("aria-label", `摄像头：${camera.name}`);
+    group.classList.add("camera-point", test ? "camera-point-test" : "camera-point-known");
+    if (camera.locationType === "approximate") group.classList.add("camera-point-approximate");
+    const approximateLabel = camera.locationType === "approximate" ? `，近似范围${camera.accuracyMeters ?? "未知"}米` : "";
+    group.setAttribute("aria-label", `摄像头：${camera.name}${approximateLabel}`);
+    if (camera.accuracyMeters) {
+      const accuracyPoint = map.project([
+        camera.lon + camera.accuracyMeters / (111_320 * Math.cos((camera.lat * Math.PI) / 180)),
+        camera.lat,
+      ]);
+      const accuracyCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      accuracyCircle.classList.add("camera-accuracy");
+      accuracyCircle.setAttribute("cx", String(point.x));
+      accuracyCircle.setAttribute("cy", String(point.y));
+      accuracyCircle.setAttribute("r", String(Math.max(8, Math.abs(accuracyPoint.x - point.x))));
+      group.appendChild(accuracyCircle);
+    }
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     circle.setAttribute("cx", String(point.x));
     circle.setAttribute("cy", String(point.y));
@@ -291,12 +330,12 @@ function renderRoutingOverlay() {
     const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
     label.setAttribute("x", String(point.x));
     label.setAttribute("y", String(point.y));
-    label.textContent = "摄";
+    label.textContent = camera.restriction?.includes("摩托") ? "禁" : "摄";
     group.append(circle, label);
     scopeOverlayElement.appendChild(group);
   }
 
-  for (const [className, coordinates] of [["route-primary", primaryRouteCoordinates], ["route-final", finalRouteCoordinates]] as const) {
+  for (const [className, coordinates] of [["route-primary", primaryRouteCoordinates], [finalRouteClassName, finalRouteCoordinates]] as const) {
     if (coordinates.length < 2) continue;
     const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
     polyline.classList.add(className);
@@ -379,7 +418,48 @@ async function loadScopeGeometry(manifest: RoutingManifest, manifestUrl: string)
 function setCameraData(dataset: CameraDataset) {
   cameraData = dataset;
   renderRoutingOverlay();
-  cameraStatusElement.textContent = `${dataset.cameras.length} 个已知点位`;
+  updateCameraStatus();
+}
+
+function updateCameraStatus() {
+  const knownCount = cameraData?.cameras.length ?? 0;
+  const testCount = testCameras.length;
+  cameraStatusElement.textContent = testCount > 0
+    ? `${knownCount} 个已知点位，${testCount} 个测试点`
+    : `${knownCount} 个已知点位`;
+}
+
+function renderTestCameraList() {
+  testCameraList.replaceChildren();
+  if (testCameras.length === 0) {
+    const empty = document.createElement("li");
+    empty.className = "test-camera-empty";
+    empty.textContent = "暂无测试点，请开启地图选点。";
+    testCameraList.appendChild(empty);
+    return;
+  }
+
+  for (const camera of testCameras) {
+    const item = document.createElement("li");
+    const text = document.createElement("span");
+    text.textContent = `${camera.name} · ${formatCoordinate(camera)}`;
+    const remove = document.createElement("button");
+    remove.className = "test-camera-remove";
+    remove.type = "button";
+    remove.textContent = "删除";
+    remove.setAttribute("aria-label", `删除${camera.name}`);
+    remove.addEventListener("click", () => {
+      testCameras = testCameras.filter(({ id }) => id !== camera.id);
+      saveLocalTestCameras(testCameras, localStorage);
+      renderTestCameraList();
+      updateCameraStatus();
+      clearRoute();
+      renderRoutingOverlay();
+      setStatus(`已删除${camera.name}。`);
+    });
+    item.append(text, remove);
+    testCameraList.appendChild(item);
+  }
 }
 
 function clearRoute() {
@@ -418,7 +498,9 @@ function showResult(result: CameraAwareRouteResult) {
   setRouteData(result);
   distanceElement.textContent = `${Math.round(result.distanceMeters).toLocaleString()} m`;
   durationElement.textContent = `${Math.max(1, Math.round(result.durationSeconds / 60))} 分钟`;
-  avoidedElement.textContent = `${result.avoidedCameraCount} 个`;
+  avoidedElement.textContent = result.cameraAvoidanceStatus === "failed"
+    ? `${result.nearbyCameraCount ?? 0} 个未避开`
+    : `${result.avoidedCameraCount} 个`;
 
   if (result.cameraAvoidanceMessage) {
     setStatus(result.cameraAvoidanceMessage);
@@ -462,6 +544,25 @@ map.on("resize", renderRoutingOverlay);
 
 map.on("click", (event: MapMouseEvent) => {
   const coordinate = { lat: event.lngLat.lat, lon: event.lngLat.lng };
+  if (cameraPickMode) {
+    const camera = {
+      id: `manual-camera-${++manualCameraSequence}`,
+      name: `测试点位 ${manualCameraSequence}`,
+      lat: coordinate.lat,
+      lon: coordinate.lon,
+      type: "motorcycle-camera",
+      description: "当前页面地图选点测试点位",
+    };
+    testCameras = [...testCameras, camera];
+    saveLocalTestCameras(testCameras, localStorage);
+    renderTestCameraList();
+    updateCameraStatus();
+    clearRoute();
+    renderRoutingOverlay();
+    setStatus(`已添加${camera.name}，可继续点击地图添加。`);
+    return;
+  }
+
   if (!start) {
     setStart(coordinate);
     setStatus("已设置起点，请继续点击地图选择目的地。");
@@ -500,47 +601,32 @@ routeButton.addEventListener("click", () => {
     region: "guangzhou",
     input: { start, end, costing: "motorcycle" },
     avoidCameras: avoidCamerasInput.checked,
-    cameras: cameraData?.cameras,
+    cameras: cameraData ? [...cameraData.cameras, ...testCameras] : testCameras.length > 0 ? testCameras : undefined,
   });
 });
 
-cameraForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const lat = Number(cameraLatInput.value);
-  const lon = Number(cameraLonInput.value);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-    setStatus("请输入有效的摄像头纬度和经度。");
-    return;
-  }
-
-  const camera: CameraPoint = {
-    id: `manual-camera-${++manualCameraSequence}`,
-    name: cameraNameInput.value.trim() || `手动测试点位 ${manualCameraSequence}`,
-    lat,
-    lon,
-    type: "motorcycle-camera",
-    description: "当前页面手动测试点位",
-  };
-  const dataset = cameraData ?? {
-    version: 1 as const,
-    region: "guangzhou",
-    updatedAt: new Date().toISOString(),
-    source: "browser-manual-test",
-    cameras: [],
-  };
-  setCameraData({ ...dataset, source: "browser-manual-test", cameras: [...dataset.cameras, camera] });
-  cameraForm.reset();
-  const inScope = isInRoutingScope({ lat, lon });
-  setStatus(`已添加${camera.name}${inScope ? "，已标记在测试范围内。" : "，但该点在当前测试路网范围外。"}`);
+cameraPickToggle.addEventListener("click", () => {
+  cameraPickMode = !cameraPickMode;
+  cameraPickToggle.textContent = cameraPickMode ? "结束地图选点" : "开始地图选点";
+  cameraPickToggle.classList.toggle("button-picking", cameraPickMode);
+  map.getCanvas().style.cursor = cameraPickMode ? "crosshair" : "";
+  setStatus(cameraPickMode ? "请点击地图添加测试摄像头，可连续添加多个。" : "已结束地图选点。你仍可继续规划路线。");
 });
 
 clearTestCamerasButton.addEventListener("click", () => {
-  if (!cameraData) return;
-  setCameraData({ ...cameraData, cameras: cameraData.cameras.filter((camera) => !camera.id.startsWith("manual-camera-")) });
-  setStatus("已清除手动测试摄像头，保留静态点位。");
+  testCameras = [];
+  saveLocalTestCameras(testCameras, localStorage);
+  renderTestCameraList();
+  updateCameraStatus();
+  clearRoute();
+  renderRoutingOverlay();
+  setStatus("已清除全部测试摄像头，保留已知点位。");
 });
 
-loadCameraDataset("/cameras/guangzhou.json")
+renderTestCameraList();
+updateCameraStatus();
+
+loadCameraDatasetFromManifest(cameraManifestUrl("guangzhou"))
   .then((dataset) => setCameraData(dataset))
   .catch(() => {
     cameraStatusElement.textContent = "加载失败，未进行避让";

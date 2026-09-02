@@ -1,8 +1,9 @@
 /// <reference lib="webworker" />
 
 import { createMotorcycleRoutingEngine } from "./engine.js";
-import { loadCameraDataset } from "../../restrictions/cameras.js";
+import { loadCameraDatasetFromManifest } from "../../restrictions/cameras.js";
 import { routeWithCameraAvoidance } from "../../restrictions/avoidance.js";
+import { cameraManifestUrl } from "../../restrictions/config.js";
 import { createManifestTileSourceFactory } from "../tiles/provider.js";
 import { routingManifestUrl } from "../config.js";
 import { toRoutingError } from "../errors.js";
@@ -54,13 +55,14 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
                 cameras: event.data.cameras,
               };
             }
-            const dataset = await loadCameraDataset(`/cameras/${event.data.region}.json`);
+            const dataset = await loadCameraDatasetFromManifest(cameraManifestUrl(event.data.region));
             if (dataset.region !== event.data.region) {
               throw new Error(`Camera dataset region mismatch: ${dataset.region}`);
             }
             return dataset;
           },
-          corridorMeters: 200,
+          corridorMeters: 20,
+          maxDetourMeters: 3000,
         })
       : await engine(event.data.input, event.data.region);
     self.postMessage({ type: "result", result });

@@ -7,5 +7,6 @@ export function routeWithCameraAvoidance(
     route(input: RouteInput): Promise<RouteResult>;
     loadCameras(): Promise<CameraDataset>;
     corridorMeters?: number;
+    maxDetourMeters?: number;
   },
 ): Promise<CameraAwareRouteResult>;

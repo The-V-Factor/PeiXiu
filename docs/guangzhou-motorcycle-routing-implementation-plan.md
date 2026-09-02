@@ -35,7 +35,7 @@
 
 UI 中使用以下表述：
 
-> 路线仅供辅助参考。摄像头点位可能存在延迟、遗漏或变更，请以实际道路标志和交通法规为准。
+> 摄像头点位资料由爱好者整理维护，仅供辅助参考，可能存在遗漏、延迟或误差。路线结果不构成道路通行资格或合法性判断，请以现场道路标志、道路标线和现行交通法规为准。
 
 路线结果显示：
 
@@ -239,7 +239,7 @@ V1 保持点位模型：
 - 摄像头点位使用 WGS84，经纬度顺序在业务模型中固定为 `lat/lon`。
 - MapLibre GeoJSON 使用 `[lon, lat]`。
 - 第一次路线完成后，使用点到路线的距离筛选附近摄像头。
-- 初始走廊半径建议 200 米，作为配置项保留。
+- 默认走廊半径为 20 米，作为配置项保留，用于判断摄像头是否真正靠近当前路线。
 - `avoidedCameraCount` 表示参与二次规划的摄像头数量，不表示法规上已经绝对安全。
 
 ```mermaid
@@ -509,8 +509,9 @@ src/
     register.ts
 
 public/
-  cameras/guangzhou.json
   manifest.webmanifest
+
+# 摄像头数据由独立数据仓库的 manifest 管理，主仓库不内置数据文件。
 
 spike/
   valhalla-route.html
@@ -575,7 +576,7 @@ tests/
 前端：Cloudflare Pages
 graph tile：独立公开数据仓库 + jsDelivr
 地图：OpenFreeMap 公共实例或自托管 OpenMapTiles
-数据：OpenStreetMap + 自维护摄像头 JSON
+数据：OpenStreetMap + 爱好者整理维护的摄像头点位 JSON
 路线计算：浏览器 WASM / JavaScript Worker
 ```
 
