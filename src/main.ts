@@ -62,16 +62,24 @@ app.innerHTML = `
         <div class="point-list">
           <div class="point-row">
             <span class="point-dot point-start">起</span>
-            <div>
+            <div class="point-main">
               <span class="point-label">起点</span>
               <strong id="start-label">等待定位或地图选点</strong>
+            </div>
+            <div class="point-actions">
+              <button id="select-start" class="point-action" type="button">重新选择</button>
+              <button id="delete-start" class="point-action point-action-delete" type="button">删除</button>
             </div>
           </div>
           <div class="point-row">
             <span class="point-dot point-end">终</span>
-            <div>
+            <div class="point-main">
               <span class="point-label">目的地</span>
               <strong id="end-label">点击地图选择</strong>
+            </div>
+            <div class="point-actions">
+              <button id="select-end" class="point-action" type="button">重新选择</button>
+              <button id="delete-end" class="point-action point-action-delete" type="button">删除</button>
             </div>
           </div>
         </div>
@@ -140,6 +148,10 @@ const testCameraList = document.querySelector<HTMLOListElement>("#test-camera-li
 const clearTestCamerasButton = document.querySelector<HTMLButtonElement>("#clear-test-cameras")!;
 const startLabel = document.querySelector<HTMLElement>("#start-label")!;
 const endLabel = document.querySelector<HTMLElement>("#end-label")!;
+const selectStartButton = document.querySelector<HTMLButtonElement>("#select-start")!;
+const deleteStartButton = document.querySelector<HTMLButtonElement>("#delete-start")!;
+const selectEndButton = document.querySelector<HTMLButtonElement>("#select-end")!;
+const deleteEndButton = document.querySelector<HTMLButtonElement>("#delete-end")!;
 const distanceElement = document.querySelector<HTMLElement>("#distance")!;
 const durationElement = document.querySelector<HTMLElement>("#duration")!;
 const avoidedElement = document.querySelector<HTMLElement>("#avoided")!;
@@ -148,7 +160,7 @@ const routeButton = document.querySelector<HTMLButtonElement>("#route")!;
 const clearButton = document.querySelector<HTMLButtonElement>("#clear")!;
 const avoidCamerasInput = document.querySelector<HTMLInputElement>("#avoid-cameras")!;
 
-if (!mapElement || !statusElement || !scopeStatusElement || !graphStatusElement || !scopeOverlayElement || !cameraStatusElement || !cameraPickToggle || !testCameraList || !clearTestCamerasButton || !startLabel || !endLabel || !distanceElement || !durationElement || !avoidedElement || !locateButton || !routeButton || !clearButton || !avoidCamerasInput) {
+if (!mapElement || !statusElement || !scopeStatusElement || !graphStatusElement || !scopeOverlayElement || !cameraStatusElement || !cameraPickToggle || !testCameraList || !clearTestCamerasButton || !startLabel || !endLabel || !selectStartButton || !deleteStartButton || !selectEndButton || !deleteEndButton || !distanceElement || !durationElement || !avoidedElement || !locateButton || !routeButton || !clearButton || !avoidCamerasInput) {
   throw new Error("Missing route planner element");
 }
 const mapContainer = mapElement;
@@ -200,6 +212,7 @@ let manualCameraSequence = testCameras.reduce((max, camera) => {
 let cameraPickMode = false;
 let start: Coordinate | null = null;
 let end: Coordinate | null = null;
+let pointSelectionMode: "start" | "end" | null = null;
 let startMarker: MapLibreMarker | null = null;
 let endMarker: MapLibreMarker | null = null;
 let currentMarker: MapLibreMarker | null = null;
@@ -228,6 +241,31 @@ function setStart(coordinate: Coordinate) {
   startLabel.textContent = formatCoordinate(coordinate);
 }
 
+function setPointSelectionMode(mode: "start" | "end") {
+  pointSelectionMode = mode;
+  setStatus(`请点击地图重新选择${mode === "start" ? "起点" : "目的地"}。`);
+}
+
+function clearStart() {
+  start = null;
+  startMarker?.remove();
+  startMarker = null;
+  startLabel.textContent = "等待定位或地图选点";
+  pointSelectionMode = null;
+  clearRoute();
+  setStatus("已删除起点，请点击地图重新选择起点。");
+}
+
+function clearEnd() {
+  end = null;
+  endMarker?.remove();
+  endMarker = null;
+  endLabel.textContent = "点击地图选择";
+  pointSelectionMode = null;
+  clearRoute();
+  setStatus(start ? "已删除目的地，请点击地图重新选择。" : "已删除目的地，请先选择起点。");
+}
+
 function setEnd(coordinate: Coordinate) {
   end = coordinate;
   endMarker?.remove();
@@ -238,7 +276,7 @@ function setEnd(coordinate: Coordinate) {
 function setCurrentLocation(coordinate: Coordinate) {
   currentMarker?.remove();
   currentMarker = new MapLibreMarker({ element: createMarkerElement("current") }).setLngLat([coordinate.lon, coordinate.lat]).addTo(map);
-  if (!start) setStart(coordinate);
+  setStart(coordinate);
 }
 
 function setRouteData(result: CameraAwareRouteResult | null) {
@@ -480,7 +518,8 @@ function requestLocation() {
     ({ coords }) => {
       const coordinate = { lat: coords.latitude, lon: coords.longitude };
       setCurrentLocation(coordinate);
-      setStatus("已取得当前位置，请点击地图选择目的地。");
+      clearRoute();
+      setStatus(end ? "已更新起点，请重新规划路线。" : "已取得当前位置，请点击地图选择目的地。");
     },
     (error) => {
       const message = error.code === error.PERMISSION_DENIED
@@ -563,6 +602,22 @@ map.on("click", (event: MapMouseEvent) => {
     return;
   }
 
+  if (pointSelectionMode === "start") {
+    setStart(coordinate);
+    pointSelectionMode = null;
+    clearRoute();
+    setStatus(end ? "已更新起点，请重新规划路线。" : "已更新起点，请点击地图选择目的地。");
+    return;
+  }
+
+  if (pointSelectionMode === "end") {
+    setEnd(coordinate);
+    pointSelectionMode = null;
+    clearRoute();
+    setStatus("已更新目的地，可以开始规划路线。");
+    return;
+  }
+
   if (!start) {
     setStart(coordinate);
     setStatus("已设置起点，请继续点击地图选择目的地。");
@@ -574,14 +629,11 @@ map.on("click", (event: MapMouseEvent) => {
 });
 
 locateButton.addEventListener("click", requestLocation);
-clearButton.addEventListener("click", () => {
-  end = null;
-  endMarker?.remove();
-  endMarker = null;
-  endLabel.textContent = "点击地图选择";
-  clearRoute();
-  setStatus(start ? "已清除目的地，请点击地图重新选择。" : "已清除选点，请先定位或点击地图设置起点。");
-});
+selectStartButton.addEventListener("click", () => setPointSelectionMode("start"));
+deleteStartButton.addEventListener("click", clearStart);
+selectEndButton.addEventListener("click", () => setPointSelectionMode("end"));
+deleteEndButton.addEventListener("click", clearEnd);
+clearButton.addEventListener("click", clearEnd);
 routeButton.addEventListener("click", () => {
   if (routing) return;
   if (!start || !end) {
