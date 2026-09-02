@@ -36,7 +36,6 @@ app.innerHTML = `
         <h1>广州摩托导航</h1>
         <p class="subtitle">在浏览器本地计算路线，辅助查看已知摄像头点位。</p>
       </div>
-      <a class="text-link" href="/spike/valhalla-route.html">打开技术 Spike</a>
     </header>
 
     <main class="workspace">
