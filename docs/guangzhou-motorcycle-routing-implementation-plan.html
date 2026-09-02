@@ -67,7 +67,7 @@
     <li>实时交通、实时摄像头同步和在线导航播报。</li>
     <li>完整禁摩法规引擎、车籍判断、时段判断和例外规则。</li>
   </ul>
-  <div class="callout warning">产品提示：路线仅供辅助参考。摄像头点位可能存在延迟、遗漏或变更，请以实际道路标志和交通法规为准。</div>
+  <div class="callout warning">产品提示：摄像头点位资料由爱好者整理维护，仅供辅助参考，可能存在遗漏、延迟或误差。路线结果不构成道路通行资格或合法性判断，请以现场道路标志、道路标线和现行交通法规为准。</div>
 
   <h2>2. 技术路线决策</h2>
   <table>
@@ -140,7 +140,7 @@ export type RoutingEngine = {
 }</code></pre>
 
   <h2>6. 摄像头点位算法</h2>
-  <p>V1 只使用静态 JSON 点位。第一次路线完成后，计算摄像头点到路线的距离，筛选 200 米内的点，再把这些点传给第二次路线请求。</p>
+  <p>V1 只使用静态 JSON 点位。第一次路线完成后，计算摄像头点到路线的距离，筛选 20 米内的点，再把这些点传给第二次路线请求。</p>
   <div class="diagram">
     <svg viewBox="0 0 1000 210" role="img" aria-label="摄像头点位避让流程图">
       <defs><marker id="arrow3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#65748b"/></marker></defs>
@@ -214,7 +214,7 @@ HTTP GET jsDelivr .gph
       <tr><td>前端</td><td>Cloudflare Pages</td></tr>
       <tr><td>graph tile</td><td>公开路网数据仓库 + jsDelivr</td></tr>
       <tr><td>地图</td><td>OpenFreeMap 公共实例或自托管 OpenMapTiles</td></tr>
-      <tr><td>数据</td><td>OpenStreetMap + 自维护摄像头 JSON</td></tr>
+      <tr><td>数据</td><td>OpenStreetMap + 爱好者整理维护的摄像头点位 JSON</td></tr>
       <tr><td>计算</td><td>浏览器 WASM / JavaScript Worker</td></tr>
     </tbody>
   </table>

@@ -42,10 +42,17 @@ export function pointToRouteDistanceMeters(point, route) {
   return nearest;
 }
 
-export function selectCamerasNearRoute(route, cameras, corridorMeters = 200) {
+export function selectCamerasNearRoute(route, cameras, corridorMeters = 20) {
   if (!Number.isFinite(corridorMeters) || corridorMeters < 0) {
     throw new RangeError("corridorMeters must be a non-negative finite number");
   }
 
-  return cameras.filter((camera) => pointToRouteDistanceMeters(camera, route) <= corridorMeters);
+  return cameras.filter((camera) => {
+    const vehicleScope = camera.vehicleScope;
+    if (vehicleScope === "truck" || camera.restriction === "压线抓拍") return false;
+    const uncertaintyMeters = camera.locationType === "approximate" && Number.isFinite(camera.accuracyMeters)
+      ? camera.accuracyMeters
+      : 0;
+    return pointToRouteDistanceMeters(camera, route) <= corridorMeters + uncertaintyMeters;
+  });
 }

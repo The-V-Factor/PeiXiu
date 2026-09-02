@@ -7,6 +7,11 @@ export type CameraPoint = {
   lon: number;
   type: string;
   description?: string;
+  restriction?: string;
+  direction?: string;
+  vehicleScope?: "motorcycle" | "motorcycle-and-truck" | "truck" | "general";
+  locationType?: "exact" | "approximate";
+  accuracyMeters?: number;
 };
 
 export type CameraDataset = {
@@ -17,10 +22,19 @@ export type CameraDataset = {
   cameras: CameraPoint[];
 };
 
+export type CameraManifest = {
+  version: 1;
+  region: string;
+  datasetVersion: string;
+  updatedAt: string;
+  dataUrl: string;
+};
+
 export type CameraAvoidanceStatus = "not-needed" | "applied" | "unavailable" | "failed";
 
 export type CameraAwareRouteResult = RouteResult & {
   cameraAvoidanceStatus: CameraAvoidanceStatus;
   cameraAvoidanceMessage?: string;
+  nearbyCameraCount?: number;
   primaryRoute?: RouteResult;
 };

@@ -27,7 +27,7 @@ npx wrangler pages deploy dist --project-name peixiu
 routing/guangzhou/manifest.json
 routing/guangzhou/graph-2026-09-01-001/1/040/973.gph
 routing/guangzhou/graph-2026-09-01-001/2/000/652/053.gph
-cameras/guangzhou/manifest.json
+  cameras/guangzhou/manifest.json
 boundaries/guangzhou/guangzhou-admin.geojson
 routing/guangzhou/coverage.geojson
 ```
@@ -49,6 +49,20 @@ https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routing-data@main/routing/guangz
 ```bash
 VITE_ROUTING_MANIFEST_URL=https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routing-data@<manifest-commit>/routing/guangzhou/manifest.json npm run build
 ```
+
+摄像头数据默认使用独立数据仓库的稳定 manifest：
+
+```text
+https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routing-data@main/cameras/guangzhou/manifest.json
+```
+
+如需测试指定摄像头数据版本，可覆盖地址：
+
+```bash
+VITE_CAMERA_MANIFEST_URL=https://cdn.jsdelivr.net/gh/The-V-Factor/PeiXiu-routing-data@<manifest-commit>/cameras/guangzhou/manifest.json npm run build
+```
+
+页面中的测试摄像头通过地图选点添加，保存在浏览器 LocalStorage，不会写入正式摄像头数据。
 
 manifest 的 `baseUrl` 必须指向同一个数据仓库 commit 下的 graph 目录；`.gph` 使用固定 commit URL，不能覆盖已发布版本。更新 routing data 时只需发布数据仓库的 `main`，不需要修改 PeiXiu 或 Cloudflare 的变量。
 
