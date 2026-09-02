@@ -62,7 +62,8 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
             return dataset;
           },
           corridorMeters: 20,
-          maxDetourMeters: 3000,
+          maxDetourMeters: 8000,
+          maxAvoidanceAttempts: 5,
         })
       : await engine(event.data.input, event.data.region);
     self.postMessage({ type: "result", result });

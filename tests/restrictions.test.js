@@ -80,12 +80,23 @@ test("does not use truck-only or pressure-line points for motorcycle avoidance",
 
 test("runs a second route with nearby camera coordinates", async () => {
   const calls = [];
+  const detourRoute = {
+    ...route,
+    distanceMeters: 1200,
+    geometry: {
+      ...route.geometry,
+      coordinates: [
+        [113.28, 23.12],
+        [113.28, 23.13],
+      ],
+    },
+  };
   const result = await routeWithCameraAvoidance(
     { start: { lat: 23.12, lon: 113.26 }, end: { lat: 23.13, lon: 113.28 }, costing: "motorcycle" },
     {
       route: async (input) => {
         calls.push(input);
-        return calls.length === 1 ? route : { ...route, distanceMeters: 1200 };
+        return calls.length === 1 ? route : detourRoute;
       },
       loadCameras: async () => dataset,
     },
@@ -121,29 +132,28 @@ test("returns the primary route with an explicit warning when camera data fails"
   assert.equal(result.primaryRoute, route);
 });
 
-test("returns the primary route with an explicit warning when no detour exists", async () => {
+test("returns the primary route with an explicit warning when no detour exists after five attempts", async () => {
   const calls = [];
   const result = await routeWithCameraAvoidance(
     { start: { lat: 23.12, lon: 113.26 }, end: { lat: 23.13, lon: 113.28 }, costing: "motorcycle" },
     {
       route: async (input) => {
         calls.push(input);
-        if (calls.length === 2) throw new Error("no route after exclusion");
         return route;
       },
       loadCameras: async () => dataset,
     },
   );
 
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 6);
   assert.equal(result.cameraAvoidanceStatus, "failed");
   assert.equal(result.nearbyCameraCount, 1);
   assert.equal(result.avoidedCameraCount, 0);
-  assert.equal(result.cameraAvoidanceMessage, "未找到最多增加 3 公里的绕行路线，当前首选路线可能经过 1 个已知摄像头。");
+  assert.equal(result.cameraAvoidanceMessage, "未找到最多增加 8 公里的绕行路线，当前首选路线可能经过 1 个已知摄像头。");
   assert.equal(result.primaryRoute, route);
 });
 
-test("falls back when the detour exceeds the three kilometer limit", async () => {
+test("falls back when the detour exceeds the configured limit", async () => {
   const result = await routeWithCameraAvoidance(
     { start: { lat: 23.12, lon: 113.26 }, end: { lat: 23.13, lon: 113.28 }, costing: "motorcycle" },
     {
