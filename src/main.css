@@ -34,11 +34,11 @@ h2 { margin-bottom: 0; font-size: 1.35rem; letter-spacing: -0.03em; }
 .scope-overlay .route-primary { stroke: #64748b; stroke-width: 6; stroke-dasharray: 10 8; opacity: 0.8; }
 .scope-overlay .route-final { stroke: #2563eb; stroke-width: 7; opacity: 0.98; }
 .scope-overlay .route-fallback { stroke: #dc2626; stroke-width: 8; opacity: 0.98; }
-.scope-legend { position: absolute; z-index: 2; top: 20px; left: 20px; display: flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid #ffffffaa; border-radius: 10px; color: #1e40af; background: #ffffffdd; box-shadow: 0 6px 18px #1720331c; font-size: 0.78rem; font-weight: 700; }
-.scope-legend-swatch { width: 24px; border-top: 3px dashed #2563eb; }
-.scope-legend-coverage { margin-left: 5px; height: 12px; border: 1px solid #0f766e66; background: #0f766e2e; }
-.route-fallback-legend-swatch { width: 24px; border-top: 4px solid #dc2626; }
-.camera-legend-swatch { display: grid; width: 20px; height: 20px; margin-left: 5px; place-items: center; border-radius: 50%; color: #fff; background: #f97316; font-size: 0.68rem; }
+.scope-legend { position: absolute; z-index: 2; top: 20px; left: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 11px; border: 1px solid #ffffffaa; border-radius: 10px; color: #1e40af; background: #ffffffdd; box-shadow: 0 6px 18px #1720331c; font-size: 0.78rem; font-weight: 700; }
+.scope-legend-item { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.scope-legend-swatch { flex: 0 0 24px; width: 24px; border-top: 3px dashed #2563eb; }
+.route-fallback-legend-swatch { flex: 0 0 24px; width: 24px; border-top: 4px solid #dc2626; }
+.camera-legend-swatch { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; color: #fff; background: #f97316; font-size: 0.68rem; }
 .camera-test-legend-swatch { background: #7c3aed; }
 .map-hint { position: absolute; z-index: 2; left: 20px; bottom: 20px; max-width: calc(100% - 40px); padding: 9px 13px; border: 1px solid #ffffffaa; border-radius: 10px; color: #334155; background: #ffffffdd; box-shadow: 0 6px 18px #1720331c; font-size: 0.82rem; }
 .control-panel { display: flex; flex-direction: column; gap: 22px; padding: 32px 28px; }
@@ -50,7 +50,9 @@ h2 { margin-bottom: 0; font-size: 1.35rem; letter-spacing: -0.03em; }
 .point-end { background: #e11d48; }
 .point-main { min-width: 0; flex: 1; }
 .point-label { display: block; color: #64748b; font-size: 0.76rem; }
-.point-row strong { display: block; max-width: 255px; overflow: hidden; color: #1e293b; font-size: 0.9rem; text-overflow: ellipsis; white-space: nowrap; }
+.point-coordinate { display: block; max-width: 255px; overflow: hidden; padding: 0; border: 0; color: #1e293b; background: transparent; cursor: pointer; font-size: 0.9rem; font-weight: 700; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.point-coordinate:disabled { cursor: default; }
+.point-coordinate:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; border-radius: 3px; }
 .point-actions { display: flex; flex: 0 0 auto; gap: 5px; }
 .point-action { padding: 4px 6px; border: 1px solid #bfdbfe; border-radius: 6px; color: #1d4ed8; background: #eff6ff; cursor: pointer; font-size: 0.68rem; font-weight: 700; }
 .point-action:hover { background: #dbeafe; }
@@ -102,4 +104,12 @@ h2 { margin-bottom: 0; font-size: 1.35rem; letter-spacing: -0.03em; }
   .workspace { grid-template-columns: 1fr; }
   .map-panel { min-height: 58vh; }
   .control-panel { padding: 24px 20px; }
+}
+
+@media (max-width: 480px) {
+  .scope-legend { top: 10px; left: 10px; right: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 2px; padding: 7px 5px; font-size: 0.6rem; }
+  .scope-legend-item { min-width: 0; flex-direction: column; gap: 3px; justify-content: flex-start; white-space: nowrap; line-height: 1.15; text-align: center; }
+  .scope-legend-item > span:first-child { min-height: 1.15em; display: flex; align-items: center; justify-content: center; }
+  .scope-legend-swatch, .route-fallback-legend-swatch { justify-self: center; }
+  .map-hint { right: 12px; left: 12px; bottom: 12px; max-width: none; padding: 8px 10px; font-size: 0.72rem; }
 }

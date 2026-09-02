@@ -33,7 +33,6 @@ app.innerHTML = `
     <header class="app-header">
       <div>
         <p class="eyebrow">PEIXIU · LOCAL ROUTING</p>
-        <h1>广州摩托导航</h1>
         <p class="subtitle">在浏览器本地计算路线，辅助查看已知摄像头点位。</p>
       </div>
     </header>
@@ -43,11 +42,10 @@ app.innerHTML = `
         <div id="map" class="map"></div>
         <svg id="scope-overlay" class="scope-overlay" aria-hidden="true"></svg>
         <div class="scope-legend">
-          <span class="scope-legend-swatch scope-legend-boundary"></span><span>广州行政边界</span>
-          <span class="scope-legend-swatch scope-legend-coverage"></span><span>路网覆盖范围（近似）</span>
-          <span class="camera-legend-swatch">摄</span><span>已知摄像头</span>
-          <span class="camera-legend-swatch camera-test-legend-swatch">测</span><span>测试点</span>
-          <span class="route-fallback-legend-swatch"></span><span>无绕行路线</span>
+          <div class="scope-legend-item"><span>广州行政边界</span><span class="scope-legend-swatch scope-legend-boundary"></span></div>
+          <div class="scope-legend-item"><span>已知摄像头</span><span class="camera-legend-swatch">摄</span></div>
+          <div class="scope-legend-item"><span>测试点</span><span class="camera-legend-swatch camera-test-legend-swatch">测</span></div>
+          <div class="scope-legend-item"><span>无绕行路线</span><span class="route-fallback-legend-swatch"></span></div>
         </div>
           <div class="map-hint">点击地图设置目的地；尚未定位时，第一次点击设置起点。蓝色虚线为广州行政边界，绿色半透明区域为路网覆盖范围（近似）。</div>
       </section>
@@ -63,10 +61,9 @@ app.innerHTML = `
             <span class="point-dot point-start">起</span>
             <div class="point-main">
               <span class="point-label">起点</span>
-              <strong id="start-label">等待定位或地图选点</strong>
+              <button id="start-label" class="point-coordinate" type="button" aria-expanded="false" disabled>等待定位或地图选点</button>
             </div>
             <div class="point-actions">
-              <button id="select-start" class="point-action" type="button">重新选择</button>
               <button id="delete-start" class="point-action point-action-delete" type="button">删除</button>
             </div>
           </div>
@@ -74,10 +71,9 @@ app.innerHTML = `
             <span class="point-dot point-end">终</span>
             <div class="point-main">
               <span class="point-label">目的地</span>
-              <strong id="end-label">点击地图选择</strong>
+              <button id="end-label" class="point-coordinate" type="button" aria-expanded="false" disabled>点击地图选择</button>
             </div>
             <div class="point-actions">
-              <button id="select-end" class="point-action" type="button">重新选择</button>
               <button id="delete-end" class="point-action point-action-delete" type="button">删除</button>
             </div>
           </div>
@@ -86,7 +82,6 @@ app.innerHTML = `
         <div class="actions">
           <button id="locate" class="button button-secondary" type="button">使用当前位置</button>
           <button id="route" class="button button-primary" type="button">规划路线</button>
-          <button id="clear" class="button button-quiet" type="button">清除目的地</button>
         </div>
 
         <label class="check-row">
@@ -145,21 +140,18 @@ const cameraStatusElement = document.querySelector<HTMLElement>("#camera-status"
 const cameraPickToggle = document.querySelector<HTMLButtonElement>("#camera-pick-toggle")!;
 const testCameraList = document.querySelector<HTMLOListElement>("#test-camera-list")!;
 const clearTestCamerasButton = document.querySelector<HTMLButtonElement>("#clear-test-cameras")!;
-const startLabel = document.querySelector<HTMLElement>("#start-label")!;
-const endLabel = document.querySelector<HTMLElement>("#end-label")!;
-const selectStartButton = document.querySelector<HTMLButtonElement>("#select-start")!;
+const startLabel = document.querySelector<HTMLButtonElement>("#start-label")!;
+const endLabel = document.querySelector<HTMLButtonElement>("#end-label")!;
 const deleteStartButton = document.querySelector<HTMLButtonElement>("#delete-start")!;
-const selectEndButton = document.querySelector<HTMLButtonElement>("#select-end")!;
 const deleteEndButton = document.querySelector<HTMLButtonElement>("#delete-end")!;
 const distanceElement = document.querySelector<HTMLElement>("#distance")!;
 const durationElement = document.querySelector<HTMLElement>("#duration")!;
 const avoidedElement = document.querySelector<HTMLElement>("#avoided")!;
 const locateButton = document.querySelector<HTMLButtonElement>("#locate")!;
 const routeButton = document.querySelector<HTMLButtonElement>("#route")!;
-const clearButton = document.querySelector<HTMLButtonElement>("#clear")!;
 const avoidCamerasInput = document.querySelector<HTMLInputElement>("#avoid-cameras")!;
 
-if (!mapElement || !statusElement || !scopeStatusElement || !graphStatusElement || !scopeOverlayElement || !cameraStatusElement || !cameraPickToggle || !testCameraList || !clearTestCamerasButton || !startLabel || !endLabel || !selectStartButton || !deleteStartButton || !selectEndButton || !deleteEndButton || !distanceElement || !durationElement || !avoidedElement || !locateButton || !routeButton || !clearButton || !avoidCamerasInput) {
+if (!mapElement || !statusElement || !scopeStatusElement || !graphStatusElement || !scopeOverlayElement || !cameraStatusElement || !cameraPickToggle || !testCameraList || !clearTestCamerasButton || !startLabel || !endLabel || !deleteStartButton || !deleteEndButton || !distanceElement || !durationElement || !avoidedElement || !locateButton || !routeButton || !avoidCamerasInput) {
   throw new Error("Missing route planner element");
 }
 const mapContainer = mapElement;
@@ -180,7 +172,7 @@ const mapStyle = {
 const map = new MapLibreMap({
   container: mapContainer,
   style: mapStyle,
-  center: [113.2644, 23.1291],
+  center: [113.31261, 22.98989],
   zoom: 12,
   maxZoom: 18,
 });
@@ -216,6 +208,7 @@ let startMarker: MapLibreMarker | null = null;
 let endMarker: MapLibreMarker | null = null;
 let currentMarker: MapLibreMarker | null = null;
 let routing = false;
+let locating = false;
 
 function setStatus(message: string) {
   statusElement.textContent = message;
@@ -223,6 +216,27 @@ function setStatus(message: string) {
 
 function formatCoordinate(coordinate: Coordinate) {
   return `${coordinate.lat.toFixed(5)}, ${coordinate.lon.toFixed(5)}`;
+}
+
+function setCoordinateLabel(element: HTMLButtonElement, coordinate: Coordinate | null, emptyText: string, pointName: string) {
+  const formatted = coordinate ? formatCoordinate(coordinate) : "";
+  element.dataset.coordinate = formatted;
+  element.dataset.pointName = pointName;
+  element.setAttribute("aria-expanded", "false");
+  element.disabled = !coordinate;
+  element.textContent = coordinate ? "已设置 · 点击显示坐标" : emptyText;
+  element.setAttribute("aria-label", coordinate ? `${pointName}已设置，点击显示经纬度` : `${pointName}${emptyText}`);
+}
+
+function toggleCoordinateLabel(element: HTMLButtonElement) {
+  const coordinate = element.dataset.coordinate;
+  if (!coordinate) return;
+
+  const expanded = element.getAttribute("aria-expanded") === "true";
+  const pointName = element.dataset.pointName ?? "点位";
+  element.setAttribute("aria-expanded", String(!expanded));
+  element.textContent = expanded ? "已设置 · 点击显示坐标" : coordinate;
+  element.setAttribute("aria-label", expanded ? `${pointName}已设置，点击显示经纬度` : `${pointName}坐标为${coordinate}，点击隐藏坐标`);
 }
 
 function createMarkerElement(kind: string) {
@@ -237,7 +251,7 @@ function setStart(coordinate: Coordinate) {
   start = coordinate;
   startMarker?.remove();
   startMarker = new MapLibreMarker({ element: createMarkerElement("start") }).setLngLat([coordinate.lon, coordinate.lat]).addTo(map);
-  startLabel.textContent = formatCoordinate(coordinate);
+  setCoordinateLabel(startLabel, coordinate, "等待定位或地图选点", "起点");
 }
 
 function setPointSelectionMode(mode: "start" | "end") {
@@ -249,7 +263,7 @@ function clearStart() {
   start = null;
   startMarker?.remove();
   startMarker = null;
-  startLabel.textContent = "等待定位或地图选点";
+  setCoordinateLabel(startLabel, null, "等待定位或地图选点", "起点");
   pointSelectionMode = null;
   clearRoute();
   setStatus("已删除起点，请点击地图重新选择起点。");
@@ -259,7 +273,7 @@ function clearEnd() {
   end = null;
   endMarker?.remove();
   endMarker = null;
-  endLabel.textContent = "点击地图选择";
+  setCoordinateLabel(endLabel, null, "点击地图选择", "目的地");
   pointSelectionMode = null;
   clearRoute();
   setStatus(start ? "已删除目的地，请点击地图重新选择。" : "已删除目的地，请先选择起点。");
@@ -269,7 +283,7 @@ function setEnd(coordinate: Coordinate) {
   end = coordinate;
   endMarker?.remove();
   endMarker = new MapLibreMarker({ element: createMarkerElement("end") }).setLngLat([coordinate.lon, coordinate.lat]).addTo(map);
-  endLabel.textContent = formatCoordinate(coordinate);
+  setCoordinateLabel(endLabel, coordinate, "点击地图选择", "目的地");
 }
 
 function setCurrentLocation(coordinate: Coordinate) {
@@ -507,28 +521,40 @@ function clearRoute() {
 }
 
 function requestLocation() {
+  if (locating) return;
+  if (!window.isSecureContext) {
+    setStatus("手机定位需要 HTTPS，当前页面不是安全连接，请改用 HTTPS 或点击地图设置起点。");
+    return;
+  }
   if (!navigator.geolocation) {
     setStatus("当前浏览器不支持定位，请点击地图设置起点。");
     return;
   }
 
+  locating = true;
+  locateButton.disabled = true;
   setStatus("正在请求当前位置…");
   navigator.geolocation.getCurrentPosition(
     ({ coords }) => {
+      locating = false;
+      locateButton.disabled = false;
       const coordinate = { lat: coords.latitude, lon: coords.longitude };
       setCurrentLocation(coordinate);
+      map.easeTo({ center: [coordinate.lon, coordinate.lat], zoom: Math.max(map.getZoom(), 14) });
       clearRoute();
       setStatus(end ? "已更新起点，请重新规划路线。" : "已取得当前位置，请点击地图选择目的地。");
     },
     (error) => {
+      locating = false;
+      locateButton.disabled = false;
       const message = error.code === error.PERMISSION_DENIED
-        ? "定位权限被拒绝，请点击地图设置起点。"
+        ? "定位权限被拒绝，请在浏览器设置中允许定位，或点击地图设置起点。"
         : error.code === error.TIMEOUT
           ? "定位请求超时，请重试或点击地图设置起点。"
-          : "暂时无法取得当前位置，请点击地图设置起点。";
+          : "暂时无法取得当前位置，请检查定位服务后重试，或点击地图设置起点。";
       setStatus(message);
     },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
   );
 }
 
@@ -628,11 +654,10 @@ map.on("click", (event: MapMouseEvent) => {
 });
 
 locateButton.addEventListener("click", requestLocation);
-selectStartButton.addEventListener("click", () => setPointSelectionMode("start"));
 deleteStartButton.addEventListener("click", clearStart);
-selectEndButton.addEventListener("click", () => setPointSelectionMode("end"));
 deleteEndButton.addEventListener("click", clearEnd);
-clearButton.addEventListener("click", clearEnd);
+startLabel.addEventListener("click", () => toggleCoordinateLabel(startLabel));
+endLabel.addEventListener("click", () => toggleCoordinateLabel(endLabel));
 routeButton.addEventListener("click", () => {
   if (routing) return;
   if (!start || !end) {
@@ -676,6 +701,8 @@ clearTestCamerasButton.addEventListener("click", () => {
 
 renderTestCameraList();
 updateCameraStatus();
+setCoordinateLabel(startLabel, null, "等待定位或地图选点", "起点");
+setCoordinateLabel(endLabel, null, "点击地图选择", "目的地");
 
 loadCameraDatasetFromManifest(cameraManifestUrl("guangzhou"))
   .then((dataset) => setCameraData(dataset))
