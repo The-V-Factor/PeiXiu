@@ -7,6 +7,8 @@ const root = new URL("../", import.meta.url);
 test("defines the compact route planner controls and mobile layout", async () => {
   const main = await readFile(new URL("src/main.ts", root), "utf8");
   const styles = await readFile(new URL("src/main.css", root), "utf8");
+  const mapConfig = await readFile(new URL("src/map/config.ts", root), "utf8");
+  const viteConfig = await readFile(new URL("vite.config.ts", root), "utf8");
 
   assert.doesNotMatch(main, /广州摩托导航/);
   assert.doesNotMatch(main, /id="clear"/);
@@ -14,6 +16,8 @@ test("defines the compact route planner controls and mobile layout", async () =>
   assert.doesNotMatch(main, /<div class="scope-legend-item"><span>路网覆盖范围（近似）/);
   assert.match(main, /center: \[113\.31261, 22\.98989\]/);
   assert.match(main, /mapTileUrlTemplate\(\)/);
+  assert.match(mapConfig, /peixiu-map-tile-proxy\.824430898\.workers\.dev\/\{z\}\/\{x\}\/\{y\}\.png/);
+  assert.match(viteConfig, /VITE_MAP_TILE_PROXY_URL/);
   assert.match(main, /window\.isSecureContext/);
   assert.match(main, /map\.easeTo\(\{ center:/);
   assert.match(styles, /\.scope-legend-item/);
