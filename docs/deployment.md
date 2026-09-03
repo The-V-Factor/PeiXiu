@@ -19,6 +19,23 @@ npx wrangler pages deploy dist --project-name peixiu
 
 首次使用前确认 Pages 项目名、域名和环境；不要把账号 token 写入仓库。
 
+## Cloudflare Worker 地图瓦片代理
+
+Worker 位于独立仓库 `The-V-Factor/PeiXiu-map-tile-proxy`，只代理固定的 OSM PNG 瓦片路径。部署前先在 Cloudflare 中确认 Worker 免费额度和账号限制，再在该仓库执行：
+
+```bash
+cd /Users/lam/mine/PeiXiu-map-tile-proxy
+npx wrangler deploy
+```
+
+将 Worker 地址配置为瓦片模板后构建前端：
+
+```text
+VITE_MAP_TILE_PROXY_URL=https://<worker-host>/{z}/{x}/{y}.png npm run build
+```
+
+配置该变量后，地图所有正常瓦片请求都经 Worker；未配置时保留 OSM 直连，便于本地开发和紧急回退。Worker 不代理路线、摄像头或 Graph 数据，不接受任意目标 URL，也不做批量预取。
+
 ## jsDelivr graph tile
 
 独立仓库 `The-V-Factor/PeiXiu-routing-data` 的目录与 manifest 保持一致：
