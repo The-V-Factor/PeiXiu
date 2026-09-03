@@ -28,13 +28,15 @@ cd /Users/lam/mine/PeiXiu-map-tile-proxy
 npx wrangler deploy
 ```
 
-将 Worker 地址配置为瓦片模板后构建前端：
+前端默认已经使用项目部署的 Worker 地址。若需要覆盖默认地址，可配置瓦片模板后构建前端：
 
 ```text
 VITE_MAP_TILE_PROXY_URL=https://<worker-host>/{z}/{x}/{y}.png npm run build
 ```
 
-配置该变量后，地图所有正常瓦片请求都经 Worker；未配置时保留 OSM 直连，便于本地开发和紧急回退。Worker 不代理路线、摄像头或 Graph 数据，不接受任意目标 URL，也不做批量预取。
+配置该变量后，地图所有正常瓦片请求都经指定 Worker；未配置时使用项目内置的 Worker 地址。只有显式配置 OSM 地址时才会直连，作为紧急回退。Worker 不代理路线、摄像头或 Graph 数据，不接受任意目标 URL，也不做批量预取。
+
+构建日志会输出 `VITE_MAP_TILE_PROXY_URL` 的实际值；若变量没有传入，会明确显示使用内置 Worker 地址。日志不会输出其他环境变量或凭据。
 
 ## jsDelivr graph tile
 
