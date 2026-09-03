@@ -9,6 +9,7 @@ import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./main.css";
 import { registerServiceWorker } from "./pwa/register.js";
+import { mapTileUrlTemplate } from "./map/config.js";
 import { loadCameraDatasetFromManifest } from "./restrictions/cameras.js";
 import { cameraManifestUrl } from "./restrictions/config.js";
 import { loadLocalTestCameras, saveLocalTestCameras } from "./restrictions/local-test-cameras.js";
@@ -161,7 +162,7 @@ const mapStyle = {
   sources: {
     osm: {
       type: "raster" as const,
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tiles: [mapTileUrlTemplate()],
       tileSize: 256,
       attribution: "© OpenStreetMap contributors",
     },

@@ -13,6 +13,7 @@ test("defines the compact route planner controls and mobile layout", async () =>
   assert.doesNotMatch(main, /id="select-(start|end)"/);
   assert.doesNotMatch(main, /<div class="scope-legend-item"><span>路网覆盖范围（近似）/);
   assert.match(main, /center: \[113\.31261, 22\.98989\]/);
+  assert.match(main, /mapTileUrlTemplate\(\)/);
   assert.match(main, /window\.isSecureContext/);
   assert.match(main, /map\.easeTo\(\{ center:/);
   assert.match(styles, /\.scope-legend-item/);
