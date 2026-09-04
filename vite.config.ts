@@ -5,7 +5,7 @@ export default defineConfig(({ command }) => {
   if (command === "build") {
     const configuredMapTileProxyUrl = process.env.VITE_MAP_TILE_PROXY_URL?.trim();
     console.log(
-      `[PeiXiu build] VITE_MAP_TILE_PROXY_URL=${configuredMapTileProxyUrl || "(not set; using built-in Worker URL)"}`,
+      `[PeiXiu build] VITE_MAP_TILE_PROXY_URL=${configuredMapTileProxyUrl || "(not set; using same-origin Pages Function route)"}`,
     );
   }
 
