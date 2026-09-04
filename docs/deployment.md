@@ -19,24 +19,39 @@ npx wrangler pages deploy dist --project-name peixiu
 
 首次使用前确认 Pages 项目名、域名和环境；不要把账号 token 写入仓库。
 
-## Cloudflare Worker 地图瓦片代理
+## Pages 同域名地图瓦片代理
 
-Worker 位于独立仓库 `The-V-Factor/PeiXiu-map-tile-proxy`，只代理固定的 OSM PNG 瓦片路径。部署前先在 Cloudflare 中确认 Worker 免费额度和账号限制，再在该仓库执行：
+PeiXiu 默认通过 Pages Function 处理同域名路径：
+
+```text
+https://peixiu.pages.dev/map-tiles/{z}/{x}/{y}.png
+```
+
+Function 位于 `functions/map-tiles/[[path]].js`，只代理固定的 OSM PNG 瓦片路径，拒绝任意目标 URL、非法坐标、查询参数和非 GET/HEAD 请求。`public/_routes.json` 将 Function 调用限制在 `/map-tiles/*`，页面静态资源仍由 Pages 直接返回。
+
+本地构建和 Pages Functions 运行器验证：
+
+```bash
+npm run build
+npx wrangler pages dev dist
+```
+
+部署 Pages 时必须使用 Git 集成或 Wrangler，使根目录的 `functions/` 被编译；普通静态文件上传不会编译 Pages Functions。当前 `wrangler.toml` 已指定 Pages 构建目录为 `dist`。
+
+前端默认不依赖 Pages 构建变量。若需要临时对照独立 Worker，可显式覆盖瓦片模板：
+
+```text
+VITE_MAP_TILE_PROXY_URL=https://peixiu-map-tile-proxy.824430898.workers.dev/{z}/{x}/{y}.png npm run build
+```
+
+独立 Worker 位于 `The-V-Factor/PeiXiu-map-tile-proxy`，验证期间保留作为回退和 A/B 对照路径：
 
 ```bash
 cd /Users/lam/mine/PeiXiu-map-tile-proxy
 npx wrangler deploy
 ```
 
-前端默认已经使用项目部署的 Worker 地址。若需要覆盖默认地址，可配置瓦片模板后构建前端：
-
-```text
-VITE_MAP_TILE_PROXY_URL=https://<worker-host>/{z}/{x}/{y}.png npm run build
-```
-
-配置该变量后，地图所有正常瓦片请求都经指定 Worker；未配置时使用项目内置的 Worker 地址。只有显式配置 OSM 地址时才会直连，作为紧急回退。Worker 不代理路线、摄像头或 Graph 数据，不接受任意目标 URL，也不做批量预取。
-
-构建日志会输出 `VITE_MAP_TILE_PROXY_URL` 的实际值；若变量没有传入，会明确显示使用内置 Worker 地址。日志不会输出其他环境变量或凭据。
+无论 Pages Function 还是独立 Worker，都不代理路线、摄像头或 Graph 数据，不接受任意目标 URL，也不做批量预取。构建日志只输出 `VITE_MAP_TILE_PROXY_URL` 的公开地图地址，或说明使用同源 Pages Function，不输出其他环境变量或凭据。
 
 ## jsDelivr graph tile
 

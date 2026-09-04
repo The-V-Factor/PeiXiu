@@ -21,6 +21,7 @@ PeiXiu 是一个**浏览器本地计算路线**的广州摩托车辅助导航 MV
 | 正式地址 | [peixiu.pages.dev](https://peixiu.pages.dev/) |
 | 覆盖范围 | 广州 |
 | 前端托管 | Cloudflare Pages |
+| 地图瓦片 | Pages 同域名 Function，独立 Worker 作为回退 |
 | 路网数据 | 真实广州 OSM graph，独立仓库 + jsDelivr |
 | 路线计算 | 浏览器本地 Valhalla WASM Worker |
 
@@ -71,6 +72,8 @@ flowchart LR
     E --> G[内存缓存 / IndexedDB]
     H[独立公开路网仓库 + jsDelivr] --> E
     I[Cloudflare Pages] --> B
+    B --> J[Pages Function /map-tiles/*]
+    J --> K[OSM 瓦片]
 ```
 
 ### MVP 实现：Valhalla WASM
